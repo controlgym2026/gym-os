@@ -1,0 +1,25 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Vercel
+.vercel
+
+# OS / editor
+.DS_Store
+Thumbs.db
