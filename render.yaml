@@ -1,0 +1,57 @@
+# Gym OS — Render Blueprint (Phase 3)
+#
+# Deploys the FastAPI backend (apps/api) as a single web service. The Next.js
+# frontend is hosted on Vercel, not here.
+#
+# Secrets (sync: false) are NOT stored in this file — Render prompts for them on
+# the first blueprint apply and thereafter they are managed in the dashboard
+# (Environment tab). Real values also live in apps/api/.env locally.
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: gym-os-api
+    runtime: python
+    plan: free                 # bump to "starter" when the free instance's cold starts / 750h cap bite
+    region: singapore          # closest Render region to the Supabase project (ap-* )
+    rootDir: apps/api          # monorepo: build + run from here
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    # Render injects $PORT. Never bare `uvicorn` — always `python -m uvicorn`.
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"          # local dev runs 3.14; pinned to a Render-supported line
+
+      # --- CORS ---
+      - key: FRONTEND_ORIGIN   # comma-separated allowed origins (Vercel URL + localhost)
+        sync: false
+
+      # --- Supabase ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL      # transaction pooler, port 6543
+        sync: false
+      - key: DIRECT_URL        # session connection, port 5432 (migration tooling)
+        sync: false
+
+      # --- Added in later phases (Cloudflare R2 = Phase 4, Resend = Phase 5) ---
+      # - key: R2_ACCOUNT_ID
+      #   sync: false
+      # - key: R2_ACCESS_KEY_ID
+      #   sync: false
+      # - key: R2_SECRET_ACCESS_KEY
+      #   sync: false
+      # - key: R2_BUCKET
+      #   sync: false
+      # - key: R2_ENDPOINT
+      #   sync: false
+      # - key: RESEND_API_KEY
+      #   sync: false
