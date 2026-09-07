@@ -9,7 +9,7 @@ integration. A LivnexaCare venture.
 |----------|-------------------------------|------------------------------|
 | Web      | Next.js 15 (Pages Router, TS) | Vercel                       |
 | API      | FastAPI                       | Render                       |
-| Database | Supabase Postgres             | Supabase (Mumbai / ap-south) |
+| Database | Supabase Postgres             | Supabase (Seoul / ap-northeast-2) |
 | Files    | Cloudflare R2                 | Cloudflare                   |
 | Email    | Resend                        | Resend                       |
 
