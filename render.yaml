@@ -42,17 +42,9 @@ services:
       - key: DIRECT_URL        # session connection, port 5432 (migration tooling)
         sync: false
 
-      # --- Cloudflare R2 (S3-compatible object storage) ---
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET
-        sync: false
-      - key: R2_ENDPOINT        # https://<account-id>.r2.cloudflarestorage.com
-        sync: false
+      # File storage uses Supabase Storage — no extra env vars, it rides on the
+      # SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY above. Bucket name lives in
+      # apps/api/.env.example (SUPABASE_STORAGE_BUCKET).
 
       # --- Added in later phases (Resend = Phase 5) ---
       # - key: RESEND_API_KEY
