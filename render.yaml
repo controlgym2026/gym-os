@@ -46,6 +46,6 @@ services:
       # SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY above. Bucket name lives in
       # apps/api/.env.example (SUPABASE_STORAGE_BUCKET).
 
-      # --- Added in later phases (Resend = Phase 5) ---
-      # - key: RESEND_API_KEY
-      #   sync: false
+      # --- Resend (transactional email) ---
+      - key: RESEND_API_KEY
+        sync: false

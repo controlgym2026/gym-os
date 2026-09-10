@@ -20,8 +20,8 @@ gym-os/
 ├── apps/
 │   ├── web/   Next.js frontend
 │   └── api/   FastAPI backend
-├── render.yaml           (Phase 3)
-└── supabase/             (Phase 2)
+├── render.yaml           Render blueprint (FastAPI service)
+└── supabase/             config + migrations
 ```
 
 ## Local development
