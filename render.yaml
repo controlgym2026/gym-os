@@ -42,16 +42,18 @@ services:
       - key: DIRECT_URL        # session connection, port 5432 (migration tooling)
         sync: false
 
-      # --- Added in later phases (Cloudflare R2 = Phase 4, Resend = Phase 5) ---
-      # - key: R2_ACCOUNT_ID
-      #   sync: false
-      # - key: R2_ACCESS_KEY_ID
-      #   sync: false
-      # - key: R2_SECRET_ACCESS_KEY
-      #   sync: false
-      # - key: R2_BUCKET
-      #   sync: false
-      # - key: R2_ENDPOINT
-      #   sync: false
+      # --- Cloudflare R2 (S3-compatible object storage) ---
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT        # https://<account-id>.r2.cloudflarestorage.com
+        sync: false
+
+      # --- Added in later phases (Resend = Phase 5) ---
       # - key: RESEND_API_KEY
       #   sync: false
