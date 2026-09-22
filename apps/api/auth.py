@@ -75,10 +75,10 @@ def get_current_staff(user=Depends(get_current_user)) -> dict:
 
     Deliberately separate from get_current_super_admin below and never a
     substitute for it — a super-admin token alone does not satisfy this
-    dependency, and this dependency does not grant admin access. Also not
-    checked by biometric.py's ADMS routes (those authenticate by device
-    serial, not by staff JWT) — a suspended tenant's biometric pushes are
-    NOT blocked by this; flagged as a gap in the Phase 3 report.
+    dependency, and this dependency does not grant admin access. Not used by
+    biometric.py's ADMS routes at all (those authenticate by device serial,
+    not by staff JWT) — they enforce the same suspension rule independently,
+    via _authenticate_device() in biometric.py.
     """
     staff = get_staff_row(user.id)
     if staff is None:

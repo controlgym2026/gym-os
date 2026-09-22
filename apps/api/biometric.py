@@ -204,21 +204,42 @@ def ingest_attlog(client, device: dict, records: list[AttlogRecord]) -> dict:
     return stats
 
 
-# --- device lookup shared by all four routes --------------------------------
-
-
-def _get_registered_device_or_401(client, serial: str) -> dict:
-    result = client.table("device").select("*, branch(timezone)").eq("serial_number", serial).execute()
-    rows = result.data or []
-    if not rows:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown device serial")
-    return rows[0]
+# --- device authentication shared by all four routes -------------------------
 
 
 def _touch_last_seen(client, device_id: str) -> None:
     client.table("device").update({"last_seen_at": datetime.now(timezone.utc).isoformat()}).eq(
         "id", device_id
     ).execute()
+
+
+def _authenticate_device(client, serial: str) -> dict:
+    """Resolve the device by serial, touch last_seen_at, and enforce tenant
+    suspension — the one funnel every ADMS route goes through. Mirrors
+    get_current_staff's 402 block for the dashboard/API on the same
+    tenant.billing_status == 'suspended' condition; closes the gap the
+    Phase 3 report flagged (ADMS never touched get_current_staff, so a
+    suspended tenant's biometric check-ins kept working). last_seen_at is
+    still updated even when suspended — that's device connectivity, not
+    billing, and staff still benefit from knowing the terminal is online.
+    """
+    result = (
+        client.table("device")
+        .select("*, branch(timezone), tenant(billing_status)")
+        .eq("serial_number", serial)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown device serial")
+    device = rows[0]
+    _touch_last_seen(client, device["id"])
+    if (device.get("tenant") or {}).get("billing_status") == "suspended":
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "This gym's Gym OS account is suspended, contact support",
+        )
+    return device
 
 
 def _guard(serial: str) -> None:
@@ -233,8 +254,7 @@ def _guard(serial: str) -> None:
 def adms_handshake(SN: str = Query(...), options: str | None = None):
     _guard(SN)
     client = get_admin_client()
-    device = _get_registered_device_or_401(client, SN)
-    _touch_last_seen(client, device["id"])
+    _authenticate_device(client, SN)
     body = (
         f"GET OPTION FROM: {SN}\n"
         "Stamp=9999\n"
@@ -253,8 +273,7 @@ def adms_handshake(SN: str = Query(...), options: str | None = None):
 async def adms_push(request: Request, SN: str = Query(...), table: str | None = None):
     _guard(SN)
     client = get_admin_client()
-    device = _get_registered_device_or_401(client, SN)
-    _touch_last_seen(client, device["id"])
+    device = _authenticate_device(client, SN)
 
     if table != "ATTLOG":
         # Other push tables (OPERLOG, biophoto, ...) aren't handled this
@@ -272,8 +291,7 @@ async def adms_push(request: Request, SN: str = Query(...), table: str | None = 
 def adms_getrequest(SN: str = Query(...)):
     _guard(SN)
     client = get_admin_client()
-    device = _get_registered_device_or_401(client, SN)
-    _touch_last_seen(client, device["id"])
+    _authenticate_device(client, SN)
     return PlainTextResponse("OK")
 
 
@@ -281,8 +299,7 @@ def adms_getrequest(SN: str = Query(...)):
 async def adms_devicecmd(request: Request, SN: str = Query(...)):
     _guard(SN)
     client = get_admin_client()
-    device = _get_registered_device_or_401(client, SN)
-    _touch_last_seen(client, device["id"])
+    _authenticate_device(client, SN)
     body = (await request.body()).decode("utf-8", errors="replace")
     print(f"[adms] SN={SN} devicecmd result: {body[:500]!r}")
     return PlainTextResponse("OK")
