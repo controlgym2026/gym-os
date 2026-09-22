@@ -53,19 +53,62 @@ def get_current_user(
 
 def get_staff_row(user_id: str) -> dict | None:
     """The staff row for a Supabase Auth user id, or None if they haven't
-    bootstrapped a tenant yet (see POST /auth/bootstrap-tenant in main.py)."""
-    result = get_admin_client().table("staff").select("*").eq("id", user_id).execute()
+    bootstrapped a tenant yet (see POST /auth/bootstrap-tenant in main.py).
+    Embeds the tenant's billing_status (used by get_current_staff to enforce
+    suspension) — harmless extra `tenant` key for the other callers
+    (bootstrap_tenant's idempotency check, GET /auth/me)."""
+    result = (
+        get_admin_client()
+        .table("staff")
+        .select("*, tenant(billing_status)")
+        .eq("id", user_id)
+        .execute()
+    )
     rows = result.data or []
     return rows[0] if rows else None
 
 
 def get_current_staff(user=Depends(get_current_user)) -> dict:
-    """Require a bootstrapped staff row. Use as a dependency on any
-    tenant-scoped route — gives `tenant_id`, `branch_id`, `role`."""
+    """Require a bootstrapped staff row in a non-suspended tenant. Use as a
+    dependency on any tenant-scoped route — gives `tenant_id`, `branch_id`,
+    `role`.
+
+    Deliberately separate from get_current_super_admin below and never a
+    substitute for it — a super-admin token alone does not satisfy this
+    dependency, and this dependency does not grant admin access. Also not
+    checked by biometric.py's ADMS routes (those authenticate by device
+    serial, not by staff JWT) — a suspended tenant's biometric pushes are
+    NOT blocked by this; flagged as a gap in the Phase 3 report.
+    """
     staff = get_staff_row(user.id)
     if staff is None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "No staff record for this user — call POST /auth/bootstrap-tenant first",
         )
+    billing_status = (staff.get("tenant") or {}).get("billing_status")
+    if billing_status == "suspended":
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "This gym's Gym OS account is suspended, contact support",
+        )
     return staff
+
+
+def get_super_admin_emails() -> set[str]:
+    raw = os.environ.get("SUPER_ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def get_current_super_admin(user=Depends(get_current_user)):
+    """Platform-level admin check — completely independent of tenant
+    membership. A super-admin is NOT a row in any tenant's staff table (a
+    platform operator isn't a member of any one gym), so this checks the
+    authenticated user's email against SUPER_ADMIN_EMAILS instead of doing
+    any staff/tenant lookup at all. Use on /admin/* routes only; never
+    accepted as a substitute for get_current_staff on tenant-scoped routes,
+    and get_current_staff is never accepted as a substitute for this.
+    """
+    if (user.email or "").lower() not in get_super_admin_emails():
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorized")
+    return user
