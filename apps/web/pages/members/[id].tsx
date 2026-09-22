@@ -40,6 +40,11 @@ export default function MemberProfilePage() {
   const [gatewayRef, setGatewayRef] = useState("");
   const [loggingPayment, setLoggingPayment] = useState(false);
 
+  // biometric enrollment form
+  const [pin, setPin] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [savingBiometric, setSavingBiometric] = useState(false);
+
   const planName = (planId: string) => plans.find((p) => p.id === planId)?.name ?? planId;
 
   async function loadAll(token: string, id: string) {
@@ -50,6 +55,8 @@ export default function MemberProfilePage() {
       apiFetch<MembershipPlan[]>("/membership-plans", { token }),
     ]);
     setMember(m);
+    setPin(m.biometric_ref ?? "");
+    setConsent(m.biometric_consent);
     setSubscriptions(subs);
     setAttendance(att);
     setPlans(plansData);
@@ -150,6 +157,25 @@ export default function MemberProfilePage() {
     }
   }
 
+  async function handleSaveBiometric(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !memberId) return;
+    setSavingBiometric(true);
+    setError(null);
+    try {
+      await apiFetch(`/members/${memberId}`, {
+        method: "PATCH",
+        token: session.access_token,
+        body: { biometric_ref: pin || null, biometric_consent: pin ? consent : undefined },
+      });
+      await loadAll(session.access_token, memberId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save biometric enrollment");
+    } finally {
+      setSavingBiometric(false);
+    }
+  }
+
   if (loading || !session || !memberId) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -193,6 +219,46 @@ export default function MemberProfilePage() {
         </div>
         {checkInResult && <p className="text-sm">{checkInResult}</p>}
         {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        <section className="border rounded p-4 flex flex-col gap-3">
+          <h2 className="font-semibold">Biometric enrollment</h2>
+          <p className="text-sm opacity-70">
+            Enroll the member&rsquo;s face on the terminal itself first (its keypad/screen assigns a PIN), then
+            enter that same PIN here.
+          </p>
+          <form onSubmit={handleSaveBiometric} className="flex flex-wrap gap-3 items-end">
+            <label className="flex flex-col gap-1 text-sm">
+              Device PIN
+              <input
+                className="border rounded px-3 py-2 w-32"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="e.g. 1001"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={!pin}
+              />
+              Member has consented to biometric check-in
+            </label>
+            <button
+              type="submit"
+              disabled={savingBiometric || (!!pin && !consent)}
+              className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              {savingBiometric ? "Saving…" : "Save"}
+            </button>
+          </form>
+          {member.biometric_consent_at && (
+            <p className="text-xs opacity-60">
+              Consent recorded {new Date(member.biometric_consent_at).toLocaleString()}
+            </p>
+          )}
+        </section>
 
         <section className="border rounded p-4 flex flex-col gap-3">
           <h2 className="font-semibold">Subscription</h2>

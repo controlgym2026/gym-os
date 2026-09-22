@@ -36,6 +36,11 @@ class MemberUpdate(BaseModel):
     email: str | None = None
     branch_id: str | None = None
     photo_url: str | None = None
+    # Biometric enrollment (Phase 2): device-side enrollment assigns a PIN on
+    # the terminal itself; staff copies that PIN in here. biometric_ref only
+    # ever holds that PIN — never a template or face image.
+    biometric_ref: str | None = None
+    biometric_consent: bool | None = None
 
 
 @router.post("", status_code=201)
@@ -80,6 +85,22 @@ def update_member(member_id: str, body: MemberUpdate, staff=Depends(get_current_
     payload = body.model_dump(exclude_unset=True)
     if not payload:
         return get_member_or_404(client, tenant_id, member_id)
+
+    if "biometric_ref" in payload:
+        if payload["biometric_ref"] is not None:
+            # Same rule as the DB check constraint (member_biometric_consent_required)
+            # — enforced here first for a clear 400 instead of a raw DB error.
+            if not payload.get("biometric_consent"):
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Setting biometric_ref requires biometric_consent=true in the same request",
+                )
+            payload["biometric_consent_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            # Clearing the PIN also clears consent, so the two can't drift.
+            payload["biometric_consent"] = False
+            payload["biometric_consent_at"] = None
+
     try:
         result = (
             client.table("member")

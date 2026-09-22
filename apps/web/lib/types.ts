@@ -7,8 +7,23 @@ export type Member = {
   email: string | null;
   photo_url: string | null;
   biometric_ref: string | null;
+  biometric_consent: boolean;
+  biometric_consent_at: string | null;
   created_at: string;
   deleted_at: string | null;
+};
+
+export type Device = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  vendor: string;
+  serial_number: string;
+  label: string | null;
+  last_seen_at: string | null;
+  status: "active" | "inactive";
+  online: boolean; // computed by the API: last_seen_at within ~10 minutes
+  created_at: string;
 };
 
 export type MembershipPlan = {

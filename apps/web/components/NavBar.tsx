@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/members", label: "Members" },
   { href: "/plans", label: "Plans" },
   { href: "/check-in", label: "Check-in" },
+  { href: "/devices", label: "Devices" },
 ];
 
 export default function NavBar() {
