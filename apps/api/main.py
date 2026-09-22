@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from attendance import router as attendance_router
 from auth import get_admin_client, get_current_user, get_staff_row
+from biometric import router as biometric_router
+from devices import router as devices_router
 from members import router as members_router
 from payments import router as payments_router
 from plans import router as plans_router
@@ -49,6 +51,8 @@ app.include_router(plans_router)
 app.include_router(subscriptions_router)
 app.include_router(attendance_router)
 app.include_router(payments_router)
+app.include_router(devices_router)
+app.include_router(biometric_router)
 
 
 # Routes -------------------------------------------------------------------------
