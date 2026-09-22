@@ -12,6 +12,7 @@ export function useAuth() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -25,14 +26,23 @@ export function useAuth() {
       router.replace("/login");
       return;
     }
-    apiFetch<{ staff: { tenant_id: string } | null }>("/auth/me", { token: session.access_token })
-      .then((me) => setTenantId(me.staff?.tenant_id ?? null))
-      .catch(() => setTenantId(null));
+    apiFetch<{ staff: { tenant_id: string } | null; is_super_admin: boolean }>("/auth/me", {
+      token: session.access_token,
+    })
+      .then((me) => {
+        setTenantId(me.staff?.tenant_id ?? null);
+        setIsSuperAdmin(me.is_super_admin);
+      })
+      .catch(() => {
+        setTenantId(null);
+        setIsSuperAdmin(false);
+      });
   }, [session, router]);
 
   return {
     session: session ?? null,
     loading: session === undefined,
     tenantId,
+    isSuperAdmin,
   };
 }

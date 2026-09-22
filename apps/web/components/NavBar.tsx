@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/useAuth";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -13,19 +14,28 @@ const LINKS = [
 
 export default function NavBar() {
   const router = useRouter();
+  // UI-only — hiding the link is a convenience, not the security boundary.
+  // Every /admin/* API call independently re-checks super-admin status.
+  const { isSuperAdmin } = useAuth();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace("/login");
   }
 
+  const links = isSuperAdmin ? [...LINKS, { href: "/admin", label: "Admin" }] : LINKS;
+
   return (
     <nav className="flex items-center gap-4 border-b px-4 py-3 text-sm">
-      {LINKS.map((link) => (
+      {links.map((link) => (
         <Link
           key={link.href}
           href={link.href}
-          className={router.pathname === link.href ? "font-semibold underline" : "opacity-80 hover:opacity-100"}
+          className={
+            router.pathname === link.href || router.pathname.startsWith(`${link.href}/`)
+              ? "font-semibold underline"
+              : "opacity-80 hover:opacity-100"
+          }
         >
           {link.label}
         </Link>

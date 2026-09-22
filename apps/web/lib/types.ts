@@ -1,3 +1,38 @@
+export type BillingStatus = "active" | "trial" | "suspended" | "cancelled";
+
+export type Tenant = {
+  id: string;
+  name: string;
+  plan_tier: string;
+  billing_status: BillingStatus;
+  created_at: string;
+  member_count: number;
+  active_subscription_count: number;
+  device_count: number;
+};
+
+export type TenantAuditLogEntry = {
+  id: string;
+  tenant_id: string;
+  action: string;
+  performed_by: string;
+  note: string | null;
+  created_at: string;
+};
+
+export type TenantStaffSummary = {
+  id: string;
+  role: string;
+  branch_id: string | null;
+  email: string | null;
+};
+
+export type TenantDetail = Tenant & {
+  branches: { id: string; address: string | null; timezone: string }[];
+  staff: TenantStaffSummary[];
+  audit_log: TenantAuditLogEntry[];
+};
+
 export type Member = {
   id: string;
   tenant_id: string;
