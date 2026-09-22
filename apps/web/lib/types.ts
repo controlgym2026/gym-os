@@ -13,6 +13,17 @@ export type Member = {
   deleted_at: string | null;
 };
 
+export type AttendanceUnmatched = {
+  id: string;
+  tenant_id: string;
+  device_id: string;
+  member_id: string | null; // set when a matched member's check-in was rejected; null for an unmatched PIN
+  raw_pin: string;
+  raw_timestamp: string;
+  reason: string; // 'unmatched_pin' | a check_in_allowed() denial reason, e.g. 'subscription is frozen'
+  received_at: string;
+};
+
 export type Device = {
   id: string;
   tenant_id: string;
