@@ -11,8 +11,9 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from admin import router as admin_router
 from attendance import router as attendance_router
-from auth import get_admin_client, get_current_user, get_staff_row
+from auth import get_admin_client, get_current_user, get_staff_row, get_super_admin_emails
 from biometric import router as biometric_router
 from devices import router as devices_router
 from members import router as members_router
@@ -53,6 +54,7 @@ app.include_router(attendance_router)
 app.include_router(payments_router)
 app.include_router(devices_router)
 app.include_router(biometric_router)
+app.include_router(admin_router)
 
 
 # Routes -------------------------------------------------------------------------
@@ -110,5 +112,14 @@ def bootstrap_tenant(body: BootstrapTenantRequest, user=Depends(get_current_user
 @app.get("/auth/me")
 def auth_me(user=Depends(get_current_user)) -> dict:
     """Session + bootstrap-status check for the frontend. `staff` is null
-    (not an error) when the user hasn't bootstrapped a tenant yet."""
-    return {"user_id": user.id, "email": user.email, "staff": get_staff_row(user.id)}
+    (not an error) when the user hasn't bootstrapped a tenant yet.
+    `is_super_admin` is UI-gating information only, not a capability grant —
+    every /admin/* route independently re-checks get_current_super_admin;
+    this flag existing here just saves the frontend a round trip to decide
+    whether to show the admin nav link."""
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "staff": get_staff_row(user.id),
+        "is_super_admin": (user.email or "").lower() in get_super_admin_emails(),
+    }
