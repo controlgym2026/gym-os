@@ -21,7 +21,17 @@ export default function Signup() {
     setError(null);
     setStatus("working");
 
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      // Without this, Supabase falls back to the project's dashboard-configured
+      // Site URL (Authentication -> URL Configuration) for the confirmation
+      // link's redirect_to — which defaults to http://localhost:3000 and is
+      // the same regardless of which environment the user actually signed up
+      // from. window.location.origin makes it follow the real environment
+      // (localhost in dev, the real deployed origin in prod) instead.
+      options: { emailRedirectTo: window.location.origin },
+    });
 
     if (signUpError) {
       setError(signUpError.message);
