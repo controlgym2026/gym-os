@@ -11,17 +11,25 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from attendance import router as attendance_router
 from auth import get_admin_client, get_current_user, get_staff_row
+from members import router as members_router
+from payments import router as payments_router
+from plans import router as plans_router
+from subscriptions import router as subscriptions_router
 
 load_dotenv()
 
 app = FastAPI(title="Gym OS API")
 
 # CORS -----------------------------------------------------------------------
-# FRONTEND_ORIGIN is a comma-separated list of allowed browser origins.
-# The Vercel production URL is wired in during Phase 5; until then this is a
-# placeholder plus localhost for local development.
-_default_origins = "https://gym-os-web.vercel.app,http://localhost:3000"
+# FRONTEND_ORIGIN is a comma-separated list of allowed browser origins, set
+# for real in Render's dashboard. This fallback only fires if that env var is
+# ever unset — matches the actual production frontend so a missing env var
+# fails toward "still works" rather than silently allowing the wrong origin
+# or blocking ours. (Previously pointed at gym-os-web.vercel.app, which
+# turned out to belong to an unrelated third-party app.)
+_default_origins = "https://gym-os-lilac.vercel.app,http://localhost:3000"
 _origins = [
     o.strip()
     for o in os.environ.get("FRONTEND_ORIGIN", _default_origins).split(",")
@@ -35,6 +43,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(members_router)
+app.include_router(plans_router)
+app.include_router(subscriptions_router)
+app.include_router(attendance_router)
+app.include_router(payments_router)
 
 
 # Routes -------------------------------------------------------------------------
