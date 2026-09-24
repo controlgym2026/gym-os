@@ -32,12 +32,14 @@ export default function MemberProfilePage() {
 
   // start-subscription form
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [newSubDueAmount, setNewSubDueAmount] = useState("0");
   const [startingSub, setStartingSub] = useState(false);
 
   // log-payment form
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "card" | "upi" | "other">("cash");
   const [gatewayRef, setGatewayRef] = useState("");
+  const [isDuePayment, setIsDuePayment] = useState(false);
   const [loggingPayment, setLoggingPayment] = useState(false);
 
   // biometric enrollment form
@@ -105,9 +107,10 @@ export default function MemberProfilePage() {
       await apiFetch(`/members/${memberId}/subscriptions`, {
         method: "POST",
         token: session.access_token,
-        body: { plan_id: selectedPlanId },
+        body: { plan_id: selectedPlanId, due_amount: Number(newSubDueAmount) || 0 },
       });
       setSelectedPlanId("");
+      setNewSubDueAmount("0");
       await loadAll(session.access_token, memberId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start subscription");
@@ -145,10 +148,12 @@ export default function MemberProfilePage() {
           method,
           gateway_ref: gatewayRef || undefined,
           status: "completed",
+          is_due_payment: isDuePayment,
         },
       });
       setAmount("");
       setGatewayRef("");
+      setIsDuePayment(false);
       await loadAll(session.access_token, memberId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not log payment");
@@ -272,6 +277,12 @@ export default function MemberProfilePage() {
                   : current.sessions_remaining !== null
                     ? `${current.sessions_remaining} sessions remaining`
                     : ""}
+                {current.due_amount > 0 && (
+                  <>
+                    {" · "}
+                    <span className="text-amber-600 font-medium">₹{current.due_amount} due</span>
+                  </>
+                )}
               </p>
               <div className="flex gap-2">
                 {(FREEZE_RESUME_CANCEL[current.status] ?? []).map((next) => (
@@ -320,6 +331,16 @@ export default function MemberProfilePage() {
                     onChange={(e) => setGatewayRef(e.target.value)}
                   />
                 </label>
+                {current.due_amount > 0 && (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={isDuePayment}
+                      onChange={(e) => setIsDuePayment(e.target.checked)}
+                    />
+                    Paying down the due balance
+                  </label>
+                )}
                 <button
                   type="submit"
                   disabled={loggingPayment}
@@ -363,6 +384,17 @@ export default function MemberProfilePage() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Due amount
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="border rounded px-2 py-1 w-28"
+                  value={newSubDueAmount}
+                  onChange={(e) => setNewSubDueAmount(e.target.value)}
+                />
               </label>
               <button
                 type="submit"

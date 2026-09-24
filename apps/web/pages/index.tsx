@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
 import type { Session } from "@supabase/supabase-js";
 import NavBar from "@/components/NavBar";
+import DashboardSummaryView from "@/components/DashboardSummaryView";
 import { supabase } from "@/lib/supabaseClient";
 import { apiFetch } from "@/lib/api";
+import type { DashboardSummary } from "@/lib/types";
 
 const PENDING_GYM_NAME_KEY = "gym-os:pending-gym-name";
 
@@ -32,6 +34,8 @@ export default function Home() {
   const [gymName, setGymName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   // Track the current session.
   useEffect(() => {
@@ -54,6 +58,15 @@ export default function Home() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load account"));
   }, [session, router]);
+
+  // Once we know the user has a staff row (a tenant), load this month's
+  // dashboard summary — the default range on GET /dashboard/summary.
+  useEffect(() => {
+    if (!session || !me?.staff) return;
+    apiFetch<DashboardSummary>("/dashboard/summary", { token: session.access_token })
+      .then(setSummary)
+      .catch((err) => setSummaryError(err instanceof Error ? err.message : "Could not load dashboard"));
+  }, [session, me]);
 
   async function handleBootstrap(e: FormEvent) {
     e.preventDefault();
@@ -136,11 +149,10 @@ export default function Home() {
   return (
     <>
       <NavBar />
-      <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
-        <p>
-          Signed in as <strong>{me.email}</strong> — role <strong>{me.staff.role}</strong>
-        </p>
-        <p className="text-sm opacity-70">tenant_id: {me.staff.tenant_id}</p>
+      <main className="max-w-5xl mx-auto p-6 flex flex-col gap-6">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        {summaryError && <p className="text-red-600 text-sm">{summaryError}</p>}
+        {summary ? <DashboardSummaryView summary={summary} /> : !summaryError && <p>Loading…</p>}
       </main>
     </>
   );

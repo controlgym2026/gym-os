@@ -1,3 +1,32 @@
+export type DashboardBucket = { count: number; amount: number };
+
+export type TransactionType = "admission" | "renewal" | "due_payment";
+
+export type RecentTransaction = {
+  id: string;
+  transaction_type: TransactionType;
+  date: string;
+  plan_name: string;
+  amount: number;
+  member_id: string | null;
+  member_name: string;
+  method: "cash" | "card" | "upi" | "other";
+};
+
+export type DashboardSummary = {
+  range: { from: string; to: string };
+  profit: number;
+  income: number;
+  expense: number;
+  discount_total: number;
+  admissions: DashboardBucket;
+  renewals: DashboardBucket;
+  due_paid: DashboardBucket;
+  online: DashboardBucket;
+  cash: DashboardBucket;
+  recent_transactions: RecentTransaction[];
+};
+
 export type BillingStatus = "active" | "trial" | "suspended" | "cancelled";
 
 export type Tenant = {
@@ -95,6 +124,7 @@ export type Subscription = {
   sessions_remaining: number | null;
   status: SubscriptionStatus;
   auto_renew: boolean;
+  due_amount: number;
   frozen_at: string | null;
   created_at: string;
 };
@@ -118,5 +148,7 @@ export type Payment = {
   method: "cash" | "card" | "upi" | "other";
   gateway_ref: string | null;
   status: "pending" | "completed" | "failed" | "refunded";
+  transaction_type: TransactionType;
+  discount_amount: number;
   created_at: string;
 };
