@@ -17,25 +17,24 @@ function fmtMoney(n: number) {
   return `₹${n.toLocaleString()}`;
 }
 
+// One consistent white card surface for every tile — color lives in the
+// icon badge, the number, and (for Profit) a left accent bar, never in the
+// card's own background. That's what keeps cards, table, and the page's
+// white background reading as one theme instead of patches of white/
+// light-green/dark floating on top of each other.
 function StatCard({ icon, label, value, hero = false }: { icon: string; label: string; value: number; hero?: boolean }) {
   return (
     <div
-      className={`rounded-2xl p-4 flex items-center gap-3 shadow-sm border ${
-        hero
-          ? "bg-gradient-to-br from-emerald-600 to-green-700 border-emerald-700 text-white"
-          : "bg-white border-emerald-100 text-emerald-950"
+      className={`rounded-2xl p-4 flex items-center gap-3 shadow-sm border bg-white border-gray-200 ${
+        hero ? "border-l-4 border-l-emerald-600" : ""
       }`}
     >
-      <span
-        className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-          hero ? "bg-white/15" : "bg-emerald-50"
-        }`}
-      >
+      <span className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg bg-emerald-50">
         {icon}
       </span>
       <div className="flex flex-col">
-        <span className={`text-xs ${hero ? "text-emerald-50/90" : "text-emerald-700/70"}`}>{label}</span>
-        <span className="text-xl font-bold">{fmtMoney(value)}</span>
+        <span className="text-xs text-gray-500">{label}</span>
+        <span className={`text-xl font-bold ${hero ? "text-emerald-700" : "text-gray-900"}`}>{fmtMoney(value)}</span>
       </div>
     </div>
   );
@@ -53,12 +52,12 @@ function CategoryCard({
   amount: number;
 }) {
   return (
-    <div className="rounded-xl p-3 flex flex-col gap-1 bg-emerald-50 border border-emerald-100">
+    <div className="rounded-xl p-3 flex flex-col gap-1 bg-white border border-gray-200 shadow-sm">
       <span className="text-sm">
-        {icon} <span className="text-emerald-800/80">{label}</span>
+        {icon} <span className="text-gray-500">{label}</span>
       </span>
-      <span className="text-lg font-semibold text-emerald-900">{fmtMoney(amount)}</span>
-      <span className="text-xs text-emerald-700/60">
+      <span className="text-lg font-semibold text-emerald-700">{fmtMoney(amount)}</span>
+      <span className="text-xs text-gray-400">
         {count} {count === 1 ? "txn" : "txns"}
       </span>
     </div>
@@ -67,9 +66,9 @@ function CategoryCard({
 
 /** Stat cards + category cards + recent-transactions table for a
  * DashboardSummary. Shared between "/" and "/finance" so the two pages
- * render identically, just fed different date ranges. Deliberately fixed
- * green/white — not the app's default theme-following palette — this is a
- * branded dashboard surface, not a general-purpose page. */
+ * render identically, just fed different date ranges. One white surface
+ * throughout (matching the app's single fixed light theme) — green is an
+ * accent (icons, numbers, badges), never a card background. */
 export default function DashboardSummaryView({ summary }: { summary: DashboardSummary }) {
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -89,8 +88,8 @@ export default function DashboardSummaryView({ summary }: { summary: DashboardSu
       </div>
 
       <div>
-        <h2 className="font-semibold mb-2 text-emerald-900">Recent Transactions</h2>
-        <div className="overflow-x-auto rounded-2xl shadow-sm border border-emerald-100 bg-white">
+        <h2 className="font-semibold mb-2 text-gray-900">Recent Transactions</h2>
+        <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-emerald-600 text-white text-left">
@@ -104,31 +103,29 @@ export default function DashboardSummaryView({ summary }: { summary: DashboardSu
             </thead>
             <tbody>
               {summary.recent_transactions.map((t, i) => (
-                <tr key={t.id} className={i % 2 === 1 ? "bg-emerald-50/60" : "bg-white"}>
+                <tr key={t.id} className={i % 2 === 1 ? "bg-gray-50" : "bg-white"}>
                   <td className="p-2.5">
                     <span className={`text-white text-xs px-2 py-0.5 rounded-full ${TYPE_COLOR[t.transaction_type]}`}>
                       {TYPE_LABEL[t.transaction_type]}
                     </span>
                   </td>
-                  <td className="p-2.5 text-emerald-900/60 whitespace-nowrap">
-                    {new Date(t.date).toLocaleDateString()}
-                  </td>
-                  <td className="p-2.5 text-emerald-950">{t.plan_name}</td>
-                  <td className="p-2.5 font-medium text-emerald-950">{fmtMoney(t.amount)}</td>
+                  <td className="p-2.5 text-gray-500 whitespace-nowrap">{new Date(t.date).toLocaleDateString()}</td>
+                  <td className="p-2.5 text-gray-900">{t.plan_name}</td>
+                  <td className="p-2.5 font-medium text-gray-900">{fmtMoney(t.amount)}</td>
                   <td className="p-2.5">
                     {t.member_id ? (
                       <Link href={`/members/${t.member_id}`} className="underline text-emerald-700 hover:text-emerald-900">
                         {t.member_name}
                       </Link>
                     ) : (
-                      <span className="text-emerald-950">{t.member_name}</span>
+                      <span className="text-gray-900">{t.member_name}</span>
                     )}
                   </td>
                   <td className="p-2.5">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full border ${
                         t.method === "cash"
-                          ? "border-emerald-900/20 text-emerald-900/70"
+                          ? "border-gray-300 text-gray-600"
                           : "border-emerald-600 text-emerald-700 bg-emerald-50"
                       }`}
                     >
@@ -139,7 +136,7 @@ export default function DashboardSummaryView({ summary }: { summary: DashboardSu
               ))}
               {summary.recent_transactions.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-emerald-900/50">
+                  <td colSpan={6} className="p-4 text-center text-gray-400">
                     No transactions yet.
                   </td>
                 </tr>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -206,9 +206,8 @@ export default function MemberProfilePage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
           <MemberPhoto path={member.photo_url} size={64} />
           <div className="flex-1">
@@ -419,7 +418,7 @@ export default function MemberProfilePage() {
             {attendance.length === 0 && <li className="py-1.5 opacity-70">No check-ins yet.</li>}
           </ul>
         </section>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

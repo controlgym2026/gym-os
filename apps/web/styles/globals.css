@@ -12,12 +12,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Deliberately no @media (prefers-color-scheme: dark) override — the app
+   uses one fixed light theme regardless of system preference, so page
+   background, nav, and card colors never disagree with each other. */
 
 body {
   background: var(--background);

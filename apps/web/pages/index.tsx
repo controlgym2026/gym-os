@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
 import type { Session } from "@supabase/supabase-js";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import DashboardSummaryView from "@/components/DashboardSummaryView";
 import { supabase } from "@/lib/supabaseClient";
 import { apiFetch } from "@/lib/api";
@@ -147,13 +147,12 @@ export default function Home() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-5xl mx-auto p-6 flex flex-col gap-6">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+    <Layout>
+      <div className="flex flex-col gap-6">
+        <h1 className="text-xl font-semibold text-emerald-950">Dashboard</h1>
         {summaryError && <p className="text-red-600 text-sm">{summaryError}</p>}
         {summary ? <DashboardSummaryView summary={summary} /> : !summaryError && <p>Loading…</p>}
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -92,9 +92,8 @@ export default function MembersPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Members</h1>
           <button
@@ -169,7 +168,7 @@ export default function MembersPage() {
         <ul className="flex flex-col divide-y border rounded">
           {members.map((m) => (
             <li key={m.id}>
-              <Link href={`/members/${m.id}`} className="flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5">
+              <Link href={`/members/${m.id}`} className="flex items-center gap-3 p-3 hover:bg-black/5">
                 <MemberPhoto path={m.photo_url} />
                 <div className="flex flex-col">
                   <span className="font-medium">{m.name}</span>
@@ -182,7 +181,7 @@ export default function MembersPage() {
             <li className="p-3 text-sm opacity-70">No members yet.</li>
           )}
         </ul>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

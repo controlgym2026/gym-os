@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import DashboardSummaryView from "@/components/DashboardSummaryView";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -56,11 +56,10 @@ export default function FinancePage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-5xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-xl font-semibold">Finance</h1>
+          <h1 className="text-xl font-semibold text-emerald-950">Finance</h1>
           <div className="flex items-center gap-2 text-sm">
             {(["this_month", "last_month", "custom"] as Period[]).map((p) => (
               <button
@@ -96,7 +95,7 @@ export default function FinancePage() {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
         {summary ? <DashboardSummaryView summary={summary} /> : !error && <p>Loading…</p>}
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

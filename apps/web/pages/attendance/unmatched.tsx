@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { AttendanceUnmatched, Device, Member } from "@/lib/types";
@@ -84,9 +84,8 @@ export default function UnmatchedAttendancePage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-xl font-semibold">Unmatched attendance</h1>
           <p className="text-sm opacity-70">
@@ -174,7 +173,7 @@ export default function UnmatchedAttendancePage() {
             {rejected.length === 0 && <li className="p-3 text-sm opacity-70">None.</li>}
           </ul>
         </section>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

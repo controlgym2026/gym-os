@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
@@ -63,9 +63,8 @@ export default function CheckInPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-md mx-auto p-6 flex flex-col gap-4">
+    <Layout>
+      <div className="max-w-md mx-auto flex flex-col gap-4">
         <h1 className="text-xl font-semibold">Check in</h1>
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
@@ -104,7 +103,7 @@ export default function CheckInPage() {
             <li className="p-3 text-sm opacity-70">Search for a member to check them in.</li>
           )}
         </ul>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { Device } from "@/lib/types";
@@ -66,9 +66,8 @@ export default function DevicesPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Devices</h1>
           <button
@@ -136,7 +135,7 @@ export default function DevicesPage() {
           ))}
           {devices.length === 0 && <li className="p-3 text-sm opacity-70">No devices registered yet.</li>}
         </ul>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

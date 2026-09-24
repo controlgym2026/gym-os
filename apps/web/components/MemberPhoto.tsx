@@ -36,7 +36,7 @@ export default function MemberPhoto({
     return (
       <div
         style={style}
-        className="rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-xs opacity-60 shrink-0"
+        className="rounded-full bg-black/10 flex items-center justify-center text-xs opacity-60 shrink-0"
       >
         —
       </div>

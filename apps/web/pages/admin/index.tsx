@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { Tenant } from "@/lib/types";
@@ -40,9 +40,8 @@ export default function AdminTenantsPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-3xl mx-auto p-6 flex flex-col gap-4">
+    <Layout>
+      <div className="flex flex-col gap-4">
         <h1 className="text-xl font-semibold">Tenants</h1>
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
@@ -61,7 +60,7 @@ export default function AdminTenantsPage() {
             </thead>
             <tbody>
               {tenants.map((t) => (
-                <tr key={t.id} className="border-b last:border-0 hover:bg-black/5 dark:hover:bg-white/5">
+                <tr key={t.id} className="border-b last:border-0 hover:bg-black/5">
                   <td className="p-2">
                     <Link href={`/admin/tenants/${t.id}`} className="underline font-medium">
                       {t.name}
@@ -79,7 +78,7 @@ export default function AdminTenantsPage() {
           </table>
           {tenants.length === 0 && !error && <p className="p-3 text-sm opacity-70">No tenants yet.</p>}
         </div>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

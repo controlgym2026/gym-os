@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { BillingStatus, TenantDetail } from "@/lib/types";
@@ -98,9 +98,8 @@ export default function AdminTenantDetailPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-xl font-semibold">{tenant.name}</h1>
           <p className="text-sm opacity-70">
@@ -201,7 +200,7 @@ export default function AdminTenantDetailPage() {
             {tenant.audit_log.length === 0 && <li className="py-1.5 opacity-70">No actions recorded yet.</li>}
           </ul>
         </section>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }

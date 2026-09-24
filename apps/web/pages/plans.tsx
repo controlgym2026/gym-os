@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import NavBar from "@/components/NavBar";
+import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { MembershipPlan } from "@/lib/types";
@@ -95,9 +95,8 @@ export default function PlansPage() {
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
+    <Layout>
+      <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Membership plans</h1>
           <button
@@ -183,7 +182,7 @@ export default function PlansPage() {
           ))}
           {plans.length === 0 && <li className="p-3 text-sm opacity-70">No plans yet.</li>}
         </ul>
-      </main>
-    </>
+      </div>
+    </Layout>
   );
 }
