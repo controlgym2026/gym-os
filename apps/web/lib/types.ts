@@ -62,6 +62,13 @@ export type TenantDetail = Tenant & {
   audit_log: TenantAuditLogEntry[];
 };
 
+export type MemberImportResult = {
+  imported: number;
+  subscriptions_started: number;
+  skipped: { line: number; reason: string }[];
+  plan_warnings: { line: number; plan_name: string }[];
+};
+
 export type Member = {
   id: string;
   tenant_id: string;

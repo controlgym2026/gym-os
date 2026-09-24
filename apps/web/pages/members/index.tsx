@@ -1,11 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
-import type { Member } from "@/lib/types";
+import type { Member, MemberImportResult } from "@/lib/types";
 
 export default function MembersPage() {
   const { session, loading, tenantId } = useAuth();
@@ -19,6 +19,11 @@ export default function MembersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   async function loadMembers(token: string, query: string) {
     try {
@@ -83,6 +88,29 @@ export default function MembersPage() {
     }
   }
 
+  async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !session) return;
+    setImporting(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const result = await apiFetch<MemberImportResult>("/members/import", {
+        method: "POST",
+        token: session.access_token,
+        body: { csv: text },
+      });
+      setImportResult(result);
+      await loadMembers(session.access_token, q);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Could not import CSV");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   if (loading || !session) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -94,15 +122,62 @@ export default function MembersPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-xl font-semibold">Members</h1>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
-          >
-            {showForm ? "Cancel" : "Add member"}
-          </button>
+          <div className="flex gap-2">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={handleImportFile}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              title="CSV columns: name (required), phone, email, plan_name"
+              className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              {importing ? "Importing…" : "Import CSV"}
+            </button>
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
+            >
+              {showForm ? "Cancel" : "Add member"}
+            </button>
+          </div>
         </div>
+
+        {importError && <p className="text-red-600 text-sm">{importError}</p>}
+        {importResult && (
+          <div className="border rounded p-3 text-sm flex flex-col gap-1">
+            <p>
+              ✓ {importResult.imported} imported
+              {importResult.subscriptions_started > 0 && ` · ${importResult.subscriptions_started} subscription(s) started`}
+              {importResult.skipped.length > 0 && ` · ${importResult.skipped.length} skipped`}
+              {importResult.plan_warnings.length > 0 && ` · ${importResult.plan_warnings.length} plan(s) not found`}
+            </p>
+            {importResult.skipped.length > 0 && (
+              <ul className="text-xs opacity-70 list-disc list-inside">
+                {importResult.skipped.map((s, i) => (
+                  <li key={i}>
+                    row {s.line}: {s.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {importResult.plan_warnings.length > 0 && (
+              <ul className="text-xs opacity-70 list-disc list-inside">
+                {importResult.plan_warnings.map((w, i) => (
+                  <li key={i}>
+                    row {w.line}: plan &ldquo;{w.plan_name}&rdquo; not found — member imported, no subscription started
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleAdd} className="flex flex-col gap-3 border rounded p-4">
