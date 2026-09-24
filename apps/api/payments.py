@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from auth import get_admin_client, get_current_staff
-from resources import get_subscription_or_404
+from resources import get_member_or_404, get_subscription_or_404
 
 router = APIRouter(tags=["payments"])
 
@@ -112,6 +112,38 @@ def list_payments(subscription_id: str, staff=Depends(get_current_staff)):
         .select("*")
         .eq("tenant_id", tenant_id)
         .eq("subscription_id", subscription_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data
+
+
+@router.get("/members/{member_id}/transactions")
+def member_transactions(member_id: str, staff=Depends(get_current_staff)):
+    """A member's full payment history across ALL their subscriptions —
+    list_payments above is per-subscription only, which isn't enough for
+    the member details modal's Transaction History panel."""
+    client = get_admin_client()
+    tenant_id = staff["tenant_id"]
+    get_member_or_404(client, tenant_id, member_id)
+
+    subs = (
+        client.table("subscription")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("member_id", member_id)
+        .execute()
+        .data
+    )
+    sub_ids = [s["id"] for s in subs]
+    if not sub_ids:
+        return []
+
+    result = (
+        client.table("payment")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .in_("subscription_id", sub_ids)
         .order("created_at", desc=True)
         .execute()
     )

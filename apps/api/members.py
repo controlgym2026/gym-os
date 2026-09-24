@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from auth import get_admin_client, get_current_staff
 from resources import get_member_or_404
+from subscriptions import expire_if_due
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -57,19 +58,70 @@ def create_member(body: MemberCreate, staff=Depends(get_current_staff)):
     return result.data[0]
 
 
+def _attach_current_subscriptions(client, tenant_id: str, members: list[dict]) -> list[dict]:
+    """Each member's most recent subscription (same "current" convention
+    used everywhere else — most recent by created_at, regardless of status),
+    lazily expired first so a stale-but-still-ACTIVE row doesn't show wrong
+    on the list, with its plan name attached. Powers the members list's Days
+    Left/Expiry/Due/Status columns without an N+1 request per row."""
+    member_ids = [m["id"] for m in members]
+    if not member_ids:
+        return members
+
+    subs = (
+        client.table("subscription")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .in_("member_id", member_ids)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    latest_by_member: dict[str, dict] = {}
+    for s in subs:
+        latest_by_member.setdefault(s["member_id"], s)  # first seen per member = most recent (query is desc)
+    latest_by_member = {mid: expire_if_due(client, s) for mid, s in latest_by_member.items()}
+
+    plan_ids = list({s["plan_id"] for s in latest_by_member.values()})
+    plans = (
+        client.table("membership_plan").select("id, name").in_("id", plan_ids).execute().data if plan_ids else []
+    )
+    plan_name_by_id = {p["id"]: p["name"] for p in plans}
+
+    for m in members:
+        sub = latest_by_member.get(m["id"])
+        m["current_subscription"] = (
+            None
+            if sub is None
+            else {
+                "id": sub["id"],
+                "plan_id": sub["plan_id"],
+                "plan_name": plan_name_by_id.get(sub["plan_id"], "—"),
+                "status": sub["status"],
+                "start_date": sub["start_date"],
+                "end_date": sub["end_date"],
+                "due_amount": sub["due_amount"],
+                "sessions_remaining": sub["sessions_remaining"],
+            }
+        )
+    return members
+
+
 @router.get("")
 def list_members(q: str | None = None, staff=Depends(get_current_staff)):
     client = get_admin_client()
+    tenant_id = staff["tenant_id"]
     query = (
         client.table("member")
         .select("*")
-        .eq("tenant_id", staff["tenant_id"])
+        .eq("tenant_id", tenant_id)
         .is_("deleted_at", "null")
     )
     if q:
         safe = _UNSAFE_FILTER_CHARS.sub("", q)
         query = query.or_(f"name.ilike.%{safe}%,phone.ilike.%{safe}%")
-    return query.order("created_at", desc=True).execute().data
+    members = query.order("created_at", desc=True).execute().data
+    return _attach_current_subscriptions(client, tenant_id, members)
 
 
 @router.get("/{member_id}")

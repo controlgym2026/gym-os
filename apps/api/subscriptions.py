@@ -40,8 +40,19 @@ class SubscriptionCreate(BaseModel):
     due_amount: float = 0  # e.g. "owes 2,000 of a 5,000 plan, paying the rest later"
 
 
-class SubscriptionStatusUpdate(BaseModel):
-    status: str  # "ACTIVE" (resume) | "FROZEN" (freeze) | "CANCELLED"
+class SubscriptionUpdate(BaseModel):
+    # Lifecycle transition (ALLOWED_TRANSITIONS state machine) — unchanged
+    # behavior from Phase 1, just now one of several optional fields instead
+    # of the only one.
+    status: str | None = None  # "ACTIVE" (resume) | "FROZEN" (freeze) | "CANCELLED"
+    # Direct field edits ("Edit Membership" — correcting a mistake, not a
+    # lifecycle transition). Applied independently of `status`; either or
+    # both may be present in one request.
+    plan_id: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    due_amount: float | None = None
+    sessions_remaining: int | None = None
 
 
 # --- pure logic (unit-tested directly, no DB) -------------------------------
@@ -207,32 +218,51 @@ def list_member_subscriptions(member_id: str, staff=Depends(get_current_staff)):
 
 
 @router.patch("/subscriptions/{subscription_id}")
-def update_subscription_status(
-    subscription_id: str, body: SubscriptionStatusUpdate, staff=Depends(get_current_staff)
-):
+def update_subscription(subscription_id: str, body: SubscriptionUpdate, staff=Depends(get_current_staff)):
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     sub = get_subscription_or_404(client, tenant_id, subscription_id)
-    sub = expire_if_due(client, sub)
 
-    new_status = body.status.upper()
-    if new_status not in ALLOWED_TRANSITIONS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown status '{body.status}'")
-    if new_status not in ALLOWED_TRANSITIONS[sub["status"]]:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Cannot move subscription from {sub['status']} to {new_status}",
-        )
+    update: dict = {}
 
-    update: dict = {"status": new_status}
-    if new_status == "FROZEN":
-        update["frozen_at"] = datetime.now(timezone.utc).isoformat()
-    elif new_status == "ACTIVE":  # resuming from FROZEN (the only transition into ACTIVE)
-        update["frozen_at"] = None
-        if sub.get("end_date") and sub.get("frozen_at"):
-            frozen_since = datetime.fromisoformat(sub["frozen_at"])
-            frozen_days = (datetime.now(timezone.utc) - frozen_since).days
-            update["end_date"] = (date.fromisoformat(sub["end_date"]) + timedelta(days=frozen_days)).isoformat()
+    if body.status is not None:
+        sub = expire_if_due(client, sub)
+        new_status = body.status.upper()
+        if new_status not in ALLOWED_TRANSITIONS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown status '{body.status}'")
+        if new_status not in ALLOWED_TRANSITIONS[sub["status"]]:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Cannot move subscription from {sub['status']} to {new_status}",
+            )
+        update["status"] = new_status
+        if new_status == "FROZEN":
+            update["frozen_at"] = datetime.now(timezone.utc).isoformat()
+        elif new_status == "ACTIVE":  # resuming from FROZEN (the only transition into ACTIVE)
+            update["frozen_at"] = None
+            if sub.get("end_date") and sub.get("frozen_at"):
+                frozen_since = datetime.fromisoformat(sub["frozen_at"])
+                frozen_days = (datetime.now(timezone.utc) - frozen_since).days
+                update["end_date"] = (date.fromisoformat(sub["end_date"]) + timedelta(days=frozen_days)).isoformat()
+
+    if body.plan_id is not None:
+        plan = get_plan_or_404(client, tenant_id, body.plan_id)
+        update["plan_id"] = plan["id"]
+    if body.start_date is not None:
+        update["start_date"] = body.start_date.isoformat()
+    if body.end_date is not None:
+        update["end_date"] = body.end_date.isoformat()
+    if body.due_amount is not None:
+        if body.due_amount < 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "due_amount cannot be negative")
+        update["due_amount"] = body.due_amount
+    if body.sessions_remaining is not None:
+        if body.sessions_remaining < 0:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "sessions_remaining cannot be negative")
+        update["sessions_remaining"] = body.sessions_remaining
+
+    if not update:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No changes given")
 
     result = (
         client.table("subscription")
