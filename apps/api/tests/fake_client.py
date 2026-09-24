@@ -33,6 +33,11 @@ class _Query:
         self._filtered = [r for r in self._filtered if r.get(col) == target]
         return self
 
+    def in_(self, col, values):
+        values = set(values)
+        self._filtered = [r for r in self._filtered if r.get(col) in values]
+        return self
+
     def gte(self, col, val):
         self._filtered = [r for r in self._filtered if r.get(col) is not None and r[col] >= val]
         return self

@@ -37,6 +37,7 @@ class SubscriptionCreate(BaseModel):
     plan_id: str
     start_date: date | None = None
     auto_renew: bool = False
+    due_amount: float = 0  # e.g. "owes 2,000 of a 5,000 plan, paying the rest later"
 
 
 class SubscriptionStatusUpdate(BaseModel):
@@ -118,6 +119,8 @@ def create_subscription(member_id: str, body: SubscriptionCreate, staff=Depends(
     plan = get_plan_or_404(client, tenant_id, body.plan_id)
     if not plan["is_active"]:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Plan is not active")
+    if body.due_amount < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "due_amount cannot be negative")
 
     # Block starting a second ACTIVE subscription (our chosen behavior —
     # cancel or let the existing one expire/complete first) rather than
@@ -136,6 +139,7 @@ def create_subscription(member_id: str, body: SubscriptionCreate, staff=Depends(
         "plan_id": plan["id"],
         "start_date": start.isoformat(),
         "auto_renew": body.auto_renew,
+        "due_amount": body.due_amount,
         "status": "ACTIVE",
     }
     if plan["session_limit"] is not None:
