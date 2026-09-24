@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
 import type { Session } from "@supabase/supabase-js";
+import NavBar from "@/components/NavBar";
 import { supabase } from "@/lib/supabaseClient";
 import { apiFetch } from "@/lib/api";
 
@@ -78,11 +79,6 @@ export default function Home() {
     }
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
-
   if (session === undefined) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -138,14 +134,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
-      <p>
-        Signed in as <strong>{me.email}</strong> — role <strong>{me.staff.role}</strong>
-      </p>
-      <p className="text-sm opacity-70">tenant_id: {me.staff.tenant_id}</p>
-      <button onClick={handleSignOut} className="rounded border px-4 py-2">
-        Sign out
-      </button>
-    </main>
+    <>
+      <NavBar />
+      <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
+        <p>
+          Signed in as <strong>{me.email}</strong> — role <strong>{me.staff.role}</strong>
+        </p>
+        <p className="text-sm opacity-70">tenant_id: {me.staff.tenant_id}</p>
+      </main>
+    </>
   );
 }
