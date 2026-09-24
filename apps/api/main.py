@@ -17,6 +17,7 @@ from auth import get_admin_client, get_current_user, get_staff_row, get_super_ad
 from biometric import router as biometric_router
 from dashboard import router as dashboard_router
 from devices import router as devices_router
+from member_import import router as member_import_router
 from members import router as members_router
 from payments import router as payments_router
 from plans import router as plans_router
@@ -49,6 +50,7 @@ app.add_middleware(
 )
 
 app.include_router(members_router)
+app.include_router(member_import_router)
 app.include_router(plans_router)
 app.include_router(subscriptions_router)
 app.include_router(attendance_router)

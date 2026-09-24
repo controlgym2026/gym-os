@@ -108,6 +108,57 @@ def get_latest_subscription(client, tenant_id: str, member_id: str) -> dict | No
     return rows[0] if rows else None
 
 
+class DuplicateActiveSubscription(Exception):
+    """Raised by start_subscription when the member already has one. Not an
+    HTTPException — shared by the HTTP route (which turns it into a 409) and
+    the CSV member-import path (which just skips starting that subscription
+    and keeps going)."""
+
+
+def start_subscription(
+    client,
+    tenant_id: str,
+    member_id: str,
+    plan: dict,
+    *,
+    start_date: date | None = None,
+    auto_renew: bool = False,
+    due_amount: float = 0,
+) -> dict:
+    """Core subscription-creation logic, shared by the HTTP route below and
+    member_import.py. Caller is responsible for member/plan existence and
+    plan.is_active checks — this only handles the duplicate-active guard and
+    the actual insert."""
+    # Block starting a second ACTIVE subscription (our chosen behavior —
+    # cancel or let the existing one expire/complete first) rather than
+    # silently superseding it. The DB has a matching partial unique index
+    # as a backstop against the same race this check alone can't close.
+    if get_active_subscription(client, tenant_id, member_id) is not None:
+        raise DuplicateActiveSubscription()
+
+    start = start_date or date.today()
+    payload: dict = {
+        "tenant_id": tenant_id,
+        "member_id": member_id,
+        "plan_id": plan["id"],
+        "start_date": start.isoformat(),
+        "auto_renew": auto_renew,
+        "due_amount": due_amount,
+        "status": "ACTIVE",
+    }
+    if plan["session_limit"] is not None:
+        payload["sessions_remaining"] = plan["session_limit"]
+        payload["end_date"] = None
+    else:
+        payload["end_date"] = (start + timedelta(days=plan["duration_days"])).isoformat()
+
+    try:
+        result = client.table("subscription").insert(payload).execute()
+    except Exception as exc:
+        raise DuplicateActiveSubscription() from exc
+    return result.data[0]
+
+
 # --- routes -------------------------------------------------------------------
 
 
@@ -122,40 +173,21 @@ def create_subscription(member_id: str, body: SubscriptionCreate, staff=Depends(
     if body.due_amount < 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "due_amount cannot be negative")
 
-    # Block starting a second ACTIVE subscription (our chosen behavior —
-    # cancel or let the existing one expire/complete first) rather than
-    # silently superseding it. The DB has a matching partial unique index
-    # as a backstop against the same race this check alone can't close.
-    if get_active_subscription(client, tenant_id, member_id) is not None:
+    try:
+        return start_subscription(
+            client,
+            tenant_id,
+            member_id,
+            plan,
+            start_date=body.start_date,
+            auto_renew=body.auto_renew,
+            due_amount=body.due_amount,
+        )
+    except DuplicateActiveSubscription:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "Member already has an active subscription — cancel it first",
         )
-
-    start = body.start_date or date.today()
-    payload: dict = {
-        "tenant_id": tenant_id,
-        "member_id": member_id,
-        "plan_id": plan["id"],
-        "start_date": start.isoformat(),
-        "auto_renew": body.auto_renew,
-        "due_amount": body.due_amount,
-        "status": "ACTIVE",
-    }
-    if plan["session_limit"] is not None:
-        payload["sessions_remaining"] = plan["session_limit"]
-        payload["end_date"] = None
-    else:
-        payload["end_date"] = (start + timedelta(days=plan["duration_days"])).isoformat()
-
-    try:
-        result = client.table("subscription").insert(payload).execute()
-    except Exception as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "Member already has an active subscription — cancel it first",
-        ) from exc
-    return result.data[0]
 
 
 @router.get("/members/{member_id}/subscriptions")
