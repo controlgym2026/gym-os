@@ -209,7 +209,7 @@ export default function MemberProfilePage() {
     <Layout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
-          <MemberPhoto path={member.photo_url} size={64} />
+          <MemberPhoto path={member.photo_url} name={member.name} size={64} />
           <div className="flex-1">
             <h1 className="text-xl font-semibold">{member.name}</h1>
             <p className="text-sm opacity-70">{member.phone || "—"} · {member.email || "—"}</p>

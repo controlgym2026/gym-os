@@ -69,6 +69,17 @@ export type MemberImportResult = {
   plan_warnings: { line: number; plan_name: string }[];
 };
 
+export type CurrentSubscriptionSummary = {
+  id: string;
+  plan_id: string;
+  plan_name: string;
+  status: SubscriptionStatus;
+  start_date: string;
+  end_date: string | null;
+  due_amount: number;
+  sessions_remaining: number | null;
+};
+
 export type Member = {
   id: string;
   tenant_id: string;
@@ -82,6 +93,9 @@ export type Member = {
   biometric_consent_at: string | null;
   created_at: string;
   deleted_at: string | null;
+  // Only present on GET /members (the list) — attached server-side so the
+  // list doesn't need an N+1 request per row. Undefined on GET /members/{id}.
+  current_subscription?: CurrentSubscriptionSummary | null;
 };
 
 export type AttendanceUnmatched = {

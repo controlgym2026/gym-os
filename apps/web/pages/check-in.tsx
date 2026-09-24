@@ -88,7 +88,7 @@ export default function CheckInPage() {
         <ul className="flex flex-col divide-y border rounded">
           {results.map((m) => (
             <li key={m.id} className="flex items-center gap-3 p-3">
-              <MemberPhoto path={m.photo_url} />
+              <MemberPhoto path={m.photo_url} name={m.name} />
               <span className="flex-1 font-medium">{m.name}</span>
               <button
                 onClick={() => handleCheckIn(m)}

@@ -2,10 +2,36 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
+import MemberDetailsModal from "@/components/MemberDetailsModal";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
-import type { Member, MemberImportResult } from "@/lib/types";
+import type { Member, MemberImportResult, SubscriptionStatus } from "@/lib/types";
+
+const STATUS_BADGE: Record<SubscriptionStatus, string> = {
+  ACTIVE: "bg-emerald-100 text-emerald-700",
+  FROZEN: "bg-blue-100 text-blue-700",
+  EXPIRED: "bg-gray-100 text-gray-600",
+  CANCELLED: "bg-red-100 text-red-700",
+};
+
+function shortId(id: string) {
+  return id.slice(0, 8).toUpperCase();
+}
+
+function digitsOnly(phone: string) {
+  return phone.replace(/\D/g, "");
+}
+
+function daysLeftLabel(endDate: string | null, sessionsRemaining: number | null): string {
+  if (endDate) {
+    const ms = new Date(endDate).getTime() - new Date().setHours(0, 0, 0, 0);
+    const days = Math.ceil(ms / 86_400_000);
+    return days >= 0 ? `${days}d` : "Expired";
+  }
+  if (sessionsRemaining !== null) return `${sessionsRemaining} sessions`;
+  return "—";
+}
 
 export default function MembersPage() {
   const { session, loading, tenantId } = useAuth();
@@ -24,6 +50,7 @@ export default function MembersPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
   async function loadMembers(token: string, query: string) {
     try {
@@ -240,23 +267,102 @@ export default function MembersPage() {
 
         {listError && <p className="text-red-600 text-sm">{listError}</p>}
 
-        <ul className="flex flex-col divide-y border rounded">
-          {members.map((m) => (
-            <li key={m.id}>
-              <Link href={`/members/${m.id}`} className="flex items-center gap-3 p-3 hover:bg-black/5">
-                <MemberPhoto path={m.photo_url} />
-                <div className="flex flex-col">
-                  <span className="font-medium">{m.name}</span>
-                  <span className="text-sm opacity-70">{m.phone || m.email || "—"}</span>
-                </div>
-              </Link>
-            </li>
-          ))}
-          {members.length === 0 && !listError && (
-            <li className="p-3 text-sm opacity-70">No members yet.</li>
-          )}
-        </ul>
+        <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left">
+                <th className="p-3 font-medium text-gray-600">Member</th>
+                <th className="p-3 font-medium text-gray-600">Phone Number</th>
+                <th className="p-3 font-medium text-gray-600">Days Left</th>
+                <th className="p-3 font-medium text-gray-600">Expiry Date</th>
+                <th className="p-3 font-medium text-gray-600">Due Amount</th>
+                <th className="p-3 font-medium text-gray-600">Status</th>
+                <th className="p-3 font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => {
+                const sub = m.current_subscription;
+                return (
+                  <tr key={m.id} className="border-t border-gray-100">
+                    <td className="p-3">
+                      <Link href={`/members/${m.id}`} className="flex items-center gap-3 hover:underline">
+                        <MemberPhoto path={m.photo_url} name={m.name} />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{m.name}</span>
+                          <span className="text-xs text-gray-400">#{shortId(m.id)}</span>
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="p-3 text-gray-700">{m.phone || "—"}</td>
+                    {sub ? (
+                      <>
+                        <td className="p-3 text-gray-700">{daysLeftLabel(sub.end_date, sub.sessions_remaining)}</td>
+                        <td className="p-3 text-gray-700">{sub.end_date ?? "—"}</td>
+                        <td className="p-3">
+                          {sub.due_amount > 0 ? (
+                            <span className="text-amber-600 font-medium">₹{sub.due_amount}</span>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[sub.status]}`}>
+                            {sub.status.charAt(0) + sub.status.slice(1).toLowerCase()}
+                          </span>
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="p-3 text-gray-400">
+                        No active plan
+                      </td>
+                    )}
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        {m.phone ? (
+                          <a
+                            href={`https://wa.me/${digitsOnly(m.phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="WhatsApp"
+                            className="w-8 h-8 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"
+                          >
+                            🟢
+                          </a>
+                        ) : (
+                          <span className="w-8 h-8" />
+                        )}
+                        <button
+                          onClick={() => setSelectedMemberId(m.id)}
+                          title="View details"
+                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-50"
+                        >
+                          👁️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {members.length === 0 && !listError && (
+                <tr>
+                  <td colSpan={7} className="p-4 text-center text-gray-400">
+                    No members yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {selectedMemberId && (
+        <MemberDetailsModal
+          memberId={selectedMemberId}
+          onClose={() => setSelectedMemberId(null)}
+          onChanged={() => session && loadMembers(session.access_token, q)}
+        />
+      )}
     </Layout>
   );
 }
