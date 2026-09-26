@@ -218,7 +218,8 @@ export default function MembersPage() {
               <ul className="text-xs opacity-70 list-disc list-inside">
                 {importResult.plan_warnings.map((w, i) => (
                   <li key={i}>
-                    row {w.line}: plan &ldquo;{w.plan_name}&rdquo; not found — member imported, no subscription started
+                    row {w.line}: plan &ldquo;{w.plan_name}&rdquo; {w.reason} — member imported, no subscription
+                    started
                   </li>
                 ))}
               </ul>

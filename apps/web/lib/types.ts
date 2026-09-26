@@ -73,7 +73,7 @@ export type MemberImportResult = {
   imported: number;
   subscriptions_started: number;
   skipped: { line: number; reason: string }[];
-  plan_warnings: { line: number; plan_name: string }[];
+  plan_warnings: { line: number; plan_name: string; reason: string }[];
 };
 
 export type CurrentSubscriptionSummary = {
