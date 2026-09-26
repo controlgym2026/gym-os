@@ -107,21 +107,39 @@ def _attach_current_subscriptions(client, tenant_id: str, members: list[dict]) -
     return members
 
 
+DEFAULT_PAGE_SIZE = 25
+MAX_PAGE_SIZE = 500  # generous cap — attendance/unmatched.tsx's "assign to
+# member" picker asks for one big page rather than a second pagination UI;
+# 500 comfortably covers a single gym's member count for that use case.
+
+
 @router.get("")
-def list_members(q: str | None = None, staff=Depends(get_current_staff)):
+def list_members(q: str | None = None, page: int = 1, page_size: int = DEFAULT_PAGE_SIZE, staff=Depends(get_current_staff)):
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
+    page = max(1, page)
+    page_size = min(max(1, page_size), MAX_PAGE_SIZE)
+    offset = (page - 1) * page_size
+
     query = (
         client.table("member")
-        .select("*")
+        .select("*", count="exact")
         .eq("tenant_id", tenant_id)
         .is_("deleted_at", "null")
     )
     if q:
+        # Server-side against the full dataset, same as before pagination —
+        # this filter runs before .range() below, not after.
         safe = _UNSAFE_FILTER_CHARS.sub("", q)
         query = query.or_(f"name.ilike.%{safe}%,phone.ilike.%{safe}%")
-    members = query.order("created_at", desc=True).execute().data
-    return _attach_current_subscriptions(client, tenant_id, members)
+    result = query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
+
+    return {
+        "items": _attach_current_subscriptions(client, tenant_id, result.data),
+        "total": result.count or 0,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/{member_id}")
