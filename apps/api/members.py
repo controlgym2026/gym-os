@@ -11,6 +11,7 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
 from auth import get_admin_client, get_current_staff
@@ -113,14 +114,7 @@ MAX_PAGE_SIZE = 500  # generous cap — attendance/unmatched.tsx's "assign to
 # 500 comfortably covers a single gym's member count for that use case.
 
 
-@router.get("")
-def list_members(q: str | None = None, page: int = 1, page_size: int = DEFAULT_PAGE_SIZE, staff=Depends(get_current_staff)):
-    client = get_admin_client()
-    tenant_id = staff["tenant_id"]
-    page = max(1, page)
-    page_size = min(max(1, page_size), MAX_PAGE_SIZE)
-    offset = (page - 1) * page_size
-
+def _filtered_members_query(client, tenant_id: str, q: str | None):
     query = (
         client.table("member")
         .select("*", count="exact")
@@ -129,14 +123,38 @@ def list_members(q: str | None = None, page: int = 1, page_size: int = DEFAULT_P
     )
     if q:
         # Server-side against the full dataset, same as before pagination —
-        # this filter runs before .range() below, not after.
+        # this filter runs before .range() is applied, not after.
         safe = _UNSAFE_FILTER_CHARS.sub("", q)
         query = query.or_(f"name.ilike.%{safe}%,phone.ilike.%{safe}%")
-    result = query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
+    return query
+
+
+@router.get("")
+def list_members(q: str | None = None, page: int = 1, page_size: int = DEFAULT_PAGE_SIZE, staff=Depends(get_current_staff)):
+    client = get_admin_client()
+    tenant_id = staff["tenant_id"]
+    page = max(1, page)
+    page_size = min(max(1, page_size), MAX_PAGE_SIZE)
+    offset = (page - 1) * page_size
+
+    query = _filtered_members_query(client, tenant_id, q).order("created_at", desc=True)
+    try:
+        result = query.range(offset, offset + page_size - 1).execute()
+        items, total = result.data, result.count or 0
+    except APIError as exc:
+        if exc.code != "PGRST103":
+            raise
+        # PostgREST rejects a range whose offset is past the last row
+        # (PGRST103, "Requested range not satisfiable") instead of just
+        # returning an empty page — e.g. paging forward past the end, or the
+        # last item on the final page got deleted between loads. Not a real
+        # error; recover the count with one more (cheap, unranged) request.
+        items = []
+        total = _filtered_members_query(client, tenant_id, q).limit(1).execute().count or 0
 
     return {
-        "items": _attach_current_subscriptions(client, tenant_id, result.data),
-        "total": result.count or 0,
+        "items": _attach_current_subscriptions(client, tenant_id, items),
+        "total": total,
         "page": page,
         "page_size": page_size,
     }
