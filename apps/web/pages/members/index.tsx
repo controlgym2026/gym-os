@@ -61,6 +61,14 @@ export default function MembersPage() {
       const params = new URLSearchParams({ page: String(pageNum), page_size: String(PAGE_SIZE) });
       if (query) params.set("q", query);
       const result = await apiFetch<PaginatedMembers>(`/members?${params}`, { token });
+      // Defensive: fail with a message instead of crashing the page if the
+      // response is ever not the shape this page expects (e.g. a stale
+      // cached bundle talking to a backend that changed shape, or a bad
+      // deploy) — members.map() on a non-array is exactly what "Application
+      // error: a client-side exception" looks like to a user.
+      if (!Array.isArray(result?.items)) {
+        throw new Error("Unexpected response from the server — try refreshing the page.");
+      }
       setMembers(result.items);
       setTotal(result.total);
       setPage(result.page);
