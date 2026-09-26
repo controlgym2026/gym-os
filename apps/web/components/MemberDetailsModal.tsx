@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { Member, MembershipPlan, Payment, Subscription, TransactionType } from "@/lib/types";
 
-type View = "details" | "early-renew" | "edit" | "history";
+type View = "details" | "early-renew" | "edit" | "edit-member" | "history";
 
 const TYPE_LABEL: Record<TransactionType, string> = {
   admission: "Admission",
@@ -19,6 +19,16 @@ function shortId(id: string) {
 
 function digitsOnly(phone: string) {
   return phone.replace(/\D/g, "");
+}
+
+/** apiFetch's thrown Error is "<method> <path> -> <status> <body>"; pull the
+ * backend's own clean {"detail": "..."} message out of that body when
+ * present (e.g. "A member with this phone number already exists") instead
+ * of showing the raw method/path/status text. */
+function extractErrorDetail(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback;
+  const match = err.message.match(/"detail":\s*"([^"]+)"/);
+  return match ? match[1] : err.message;
 }
 
 function daysLeft(endDate: string): number {
@@ -200,6 +210,12 @@ export default function MemberDetailsModal({
             >
               🧾 Transaction History
             </button>
+            <button
+              onClick={() => setView("edit-member")}
+              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
+            >
+              🧑 Edit Member
+            </button>
           </div>
 
           <Link href={`/members/${member.id}`} className="text-sm underline text-emerald-700 text-center">
@@ -225,6 +241,17 @@ export default function MemberDetailsModal({
         <EditMembershipForm
           subscription={current}
           plans={activePlans}
+          onCancel={() => setView("details")}
+          onDone={async () => {
+            await refresh();
+            setView("details");
+          }}
+        />
+      )}
+
+      {view === "edit-member" && (
+        <EditMemberForm
+          member={member}
           onCancel={() => setView("details")}
           onDone={async () => {
             await refresh();
@@ -441,6 +468,78 @@ function EarlyRenewForm({
         className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50"
       >
         {saving ? "Saving…" : "Confirm renewal"}
+      </button>
+    </form>
+  );
+}
+
+function EditMemberForm({
+  member,
+  onCancel,
+  onDone,
+}: {
+  member: Member;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const { session } = useAuth();
+  const [name, setName] = useState(member.name);
+  const [phone, setPhone] = useState(member.phone ?? "");
+  const [email, setEmail] = useState(member.email ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!session) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch(`/members/${member.id}`, {
+        method: "PATCH",
+        token: session.access_token,
+        body: { name, phone: phone || null, email: email || null },
+      });
+      onDone();
+    } catch (err) {
+      // Same backend check used by CSV import: phone must be unique within
+      // the tenant among non-deleted members.
+      setError(extractErrorDetail(err, "Could not save member"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <button type="button" onClick={onCancel} className="text-sm underline self-start">
+        ← Back
+      </button>
+      <label className="flex flex-col gap-1 text-sm">
+        Name
+        <input
+          className="border rounded px-2 py-1.5"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Phone
+        <input className="border rounded px-2 py-1.5" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Email
+        <input
+          type="email"
+          className="border rounded px-2 py-1.5"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <button type="submit" disabled={saving} className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50">
+        {saving ? "Saving…" : "Save changes"}
       </button>
     </form>
   );

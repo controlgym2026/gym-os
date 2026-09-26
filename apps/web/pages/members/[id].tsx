@@ -17,6 +17,16 @@ function fmtDate(s: string | null) {
   return s ? new Date(s).toLocaleDateString() : "—";
 }
 
+/** apiFetch's thrown Error is "<method> <path> -> <status> <body>"; pull the
+ * backend's own clean {"detail": "..."} message out of that body when
+ * present (e.g. "A member with this phone number already exists") instead
+ * of showing the raw method/path/status text. */
+function extractErrorDetail(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback;
+  const match = err.message.match(/"detail":\s*"([^"]+)"/);
+  return match ? match[1] : err.message;
+}
+
 export default function MemberProfilePage() {
   const router = useRouter();
   const memberId = typeof router.query.id === "string" ? router.query.id : null;
@@ -46,6 +56,15 @@ export default function MemberProfilePage() {
   const [pin, setPin] = useState("");
   const [consent, setConsent] = useState(false);
   const [savingBiometric, setSavingBiometric] = useState(false);
+
+  // edit-member-identity form (name/phone/email only — subscription/plan
+  // fields stay in "Edit Membership", not here)
+  const [showEditMember, setShowEditMember] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [savingMember, setSavingMember] = useState(false);
+  const [editMemberError, setEditMemberError] = useState<string | null>(null);
 
   const planName = (planId: string) => plans.find((p) => p.id === planId)?.name ?? planId;
 
@@ -181,6 +200,42 @@ export default function MemberProfilePage() {
     }
   }
 
+  function handleOpenEditMember() {
+    if (!member) return;
+    setEditName(member.name);
+    setEditPhone(member.phone ?? "");
+    setEditEmail(member.email ?? "");
+    setEditMemberError(null);
+    setShowEditMember(true);
+  }
+
+  async function handleSaveMember(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !memberId) return;
+    setSavingMember(true);
+    setEditMemberError(null);
+    try {
+      await apiFetch(`/members/${memberId}`, {
+        method: "PATCH",
+        token: session.access_token,
+        body: {
+          name: editName,
+          phone: editPhone || null,
+          email: editEmail || null,
+        },
+      });
+      setShowEditMember(false);
+      await loadAll(session.access_token, memberId);
+    } catch (err) {
+      // Same backend check used by CSV import: phone must be unique within
+      // the tenant among non-deleted members — surfaced here with the
+      // backend's own clear message rather than a generic failure.
+      setEditMemberError(extractErrorDetail(err, "Could not save member"));
+    } finally {
+      setSavingMember(false);
+    }
+  }
+
   if (loading || !session || !memberId) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -214,6 +269,9 @@ export default function MemberProfilePage() {
             <h1 className="text-xl font-semibold">{member.name}</h1>
             <p className="text-sm opacity-70">{member.phone || "—"} · {member.email || "—"}</p>
           </div>
+          <button onClick={handleOpenEditMember} className="rounded border px-3 py-1.5 text-sm">
+            Edit member
+          </button>
           <button
             onClick={handleCheckIn}
             className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
@@ -221,6 +279,56 @@ export default function MemberProfilePage() {
             Check in
           </button>
         </div>
+
+        {showEditMember && (
+          <form onSubmit={handleSaveMember} className="border rounded p-4 flex flex-col gap-3">
+            <h2 className="font-semibold">Edit member</h2>
+            <label className="flex flex-col gap-1 text-sm">
+              Name
+              <input
+                className="border rounded px-3 py-2"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Phone
+              <input
+                className="border rounded px-3 py-2"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Email
+              <input
+                type="email"
+                className="border rounded px-3 py-2"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+              />
+            </label>
+            {editMemberError && <p className="text-red-600 text-sm">{editMemberError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={savingMember}
+                className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+              >
+                {savingMember ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEditMember(false)}
+                className="rounded border px-3 py-1.5 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
         {checkInResult && <p className="text-sm">{checkInResult}</p>}
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
