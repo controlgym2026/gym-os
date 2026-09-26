@@ -6,7 +6,9 @@ import MemberDetailsModal from "@/components/MemberDetailsModal";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
-import type { Member, MemberImportResult, SubscriptionStatus } from "@/lib/types";
+import type { Member, MemberImportResult, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
+
+const PAGE_SIZE = 25;
 
 const STATUS_BADGE: Record<SubscriptionStatus, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
@@ -36,6 +38,8 @@ function daysLeftLabel(endDate: string | null, sessionsRemaining: number | null)
 export default function MembersPage() {
   const { session, loading, tenantId } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -52,10 +56,14 @@ export default function MembersPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
-  async function loadMembers(token: string, query: string) {
+  async function loadMembers(token: string, query: string, pageNum: number) {
     try {
-      const params = query ? `?q=${encodeURIComponent(query)}` : "";
-      setMembers(await apiFetch<Member[]>(`/members${params}`, { token }));
+      const params = new URLSearchParams({ page: String(pageNum), page_size: String(PAGE_SIZE) });
+      if (query) params.set("q", query);
+      const result = await apiFetch<PaginatedMembers>(`/members?${params}`, { token });
+      setMembers(result.items);
+      setTotal(result.total);
+      setPage(result.page);
       setListError(null);
     } catch (err) {
       setListError(err instanceof Error ? err.message : "Could not load members");
@@ -63,12 +71,16 @@ export default function MembersPage() {
   }
 
   useEffect(() => {
-    if (session) loadMembers(session.access_token, "");
+    if (session) loadMembers(session.access_token, "", 1);
   }, [session]);
 
   function handleSearch(e: FormEvent) {
     e.preventDefault();
-    if (session) loadMembers(session.access_token, q);
+    if (session) loadMembers(session.access_token, q, 1); // new search always starts at page 1
+  }
+
+  function goToPage(pageNum: number) {
+    if (session) loadMembers(session.access_token, q, pageNum);
   }
 
   async function handleAdd(e: FormEvent) {
@@ -107,7 +119,7 @@ export default function MembersPage() {
       setEmail("");
       setPhotoFile(null);
       setShowForm(false);
-      await loadMembers(session.access_token, q);
+      await loadMembers(session.access_token, q, page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add member");
     } finally {
@@ -130,7 +142,7 @@ export default function MembersPage() {
         body: { csv: text },
       });
       setImportResult(result);
-      await loadMembers(session.access_token, q);
+      await loadMembers(session.access_token, q, page);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Could not import CSV");
     } finally {
@@ -354,13 +366,37 @@ export default function MembersPage() {
             </tbody>
           </table>
         </div>
+
+        {total > 0 && (
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <span>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} members
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page <= 1}
+                className="rounded border px-3 py-1.5 disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page * PAGE_SIZE >= total}
+                className="rounded border px-3 py-1.5 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedMemberId && (
         <MemberDetailsModal
           memberId={selectedMemberId}
           onClose={() => setSelectedMemberId(null)}
-          onChanged={() => session && loadMembers(session.access_token, q)}
+          onChanged={() => session && loadMembers(session.access_token, q, page)}
         />
       )}
     </Layout>

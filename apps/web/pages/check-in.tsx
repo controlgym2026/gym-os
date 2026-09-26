@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
-import type { Member } from "@/lib/types";
+import type { Member, PaginatedMembers } from "@/lib/types";
 
 type Result = { memberName: string; ok: boolean; message: string };
 
@@ -23,7 +23,10 @@ export default function CheckInPage() {
     }
     setSearching(true);
     try {
-      setResults(await apiFetch<Member[]>(`/members?q=${encodeURIComponent(q)}`, { token: session.access_token }));
+      const result = await apiFetch<PaginatedMembers>(`/members?q=${encodeURIComponent(q)}`, {
+        token: session.access_token,
+      });
+      setResults(result.items);
     } finally {
       setSearching(false);
     }

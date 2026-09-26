@@ -3,7 +3,7 @@ import Link from "next/link";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
-import type { AttendanceUnmatched, Device, Member } from "@/lib/types";
+import type { AttendanceUnmatched, Device, Member, PaginatedMembers } from "@/lib/types";
 
 function fmt(s: string) {
   return new Date(s).toLocaleString();
@@ -26,12 +26,14 @@ export default function UnmatchedAttendancePage() {
     Promise.all([
       apiFetch<AttendanceUnmatched[]>("/attendance/unmatched", { token }),
       apiFetch<Device[]>("/devices", { token }),
-      apiFetch<Member[]>("/members", { token }),
+      // Big page rather than a second pagination UI here — this just
+      // populates the "assign to member" picker, not a browsable list.
+      apiFetch<PaginatedMembers>("/members?page_size=500", { token }),
     ])
       .then(([r, d, m]) => {
         setRows(r);
         setDevices(d);
-        setMembers(m);
+        setMembers(m.items);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load"));
   }, [session]);
