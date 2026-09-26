@@ -13,26 +13,45 @@ while calling blocking code inside would block the event loop instead.
 """
 
 import os
-from functools import lru_cache
+import threading
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client, create_client
 
 _bearer = HTTPBearer(auto_error=False)
+_thread_local = threading.local()
 
 
-@lru_cache
 def get_admin_client() -> Client:
     """Service-role Supabase client. Bypasses RLS — backend-only, never expose
-    to the frontend. Lazy + cached so `/health` still works without Supabase
-    configured; only auth-dependent routes fail if the env vars are missing.
+    to the frontend.
+
+    One client per WORKER THREAD, not a single process-wide singleton. This
+    used to be `@lru_cache`'d (one shared instance for the whole process) —
+    under real concurrent load that one instance's httpx connection pool got
+    used by multiple OS threads at once (every sync route here runs in
+    FastAPI's threadpool) and intermittently threw
+    `httpcore.ReadError: [WinError 10035] A non-blocking socket operation
+    could not be completed immediately` — reproduced both locally and
+    against the live deployment with genuinely concurrent requests (e.g. the
+    member-detail page's Promise.all of 4 parallel fetches). A thread-local
+    client still reuses connections across requests handled by the same
+    worker thread, it just never shares one connection pool across threads.
+
+    Lazy per-thread so `/health` still works without Supabase configured;
+    only auth-dependent routes fail if the env vars are missing.
     """
+    client = getattr(_thread_local, "client", None)
+    if client is not None:
+        return client
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:
         raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
-    return create_client(url, key)
+    client = create_client(url, key)
+    _thread_local.client = client
+    return client
 
 
 def get_current_user(
