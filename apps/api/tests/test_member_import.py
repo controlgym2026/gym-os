@@ -120,14 +120,25 @@ class TestRunMemberImport:
         result = run_member_import(client, TENANT, [_row(name="Alice", plan_name="Nonexistent Plan")])
         assert result["imported"] == 1  # member still created
         assert result["subscriptions_started"] == 0
-        assert result["plan_warnings"] == [{"line": 1, "plan_name": "Nonexistent Plan"}]
+        assert result["plan_warnings"] == [{"line": 1, "plan_name": "Nonexistent Plan", "reason": "not found"}]
 
     def test_inactive_plan_is_not_matched(self):
         client = FakeClient()
         client.seed("membership_plan", [_plan(is_active=False)])
         result = run_member_import(client, TENANT, [_row(name="Alice", plan_name="Monthly")])
         assert result["subscriptions_started"] == 0
-        assert result["plan_warnings"] == [{"line": 1, "plan_name": "Monthly"}]
+        assert result["plan_warnings"] == [{"line": 1, "plan_name": "Monthly", "reason": "not found"}]
+
+    def test_ambiguous_plan_name_is_warned_not_guessed(self):
+        client = FakeClient()
+        client.seed("membership_plan", [_plan(id="plan-1"), _plan(id="plan-2")])  # two active plans, same name
+        result = run_member_import(client, TENANT, [_row(name="Alice", plan_name="Monthly")])
+        assert result["imported"] == 1
+        assert result["subscriptions_started"] == 0  # never silently picks one
+        assert result["plan_warnings"] == [
+            {"line": 1, "plan_name": "Monthly", "reason": "multiple active plans share this name"}
+        ]
+        assert client.tables.get("subscription", []) == []
 
     def test_mixed_file_reports_each_row_independently(self):
         client = FakeClient()
@@ -142,3 +153,31 @@ class TestRunMemberImport:
         assert result["imported"] == 1
         assert result["subscriptions_started"] == 1
         assert {s["reason"] for s in result["skipped"]} == {"missing name", "duplicate phone"}
+
+    def test_batched_import_pairs_each_member_with_its_own_plan_correctly(self):
+        """The batching rewrite pairs inserted members back to CSV rows by
+        position (zip) rather than one-request-per-row — this is exactly
+        the kind of change that could silently swap two rows' plans if the
+        pairing were ever wrong, so assert it explicitly against a larger,
+        varied batch rather than trusting it by inspection."""
+        client = FakeClient()
+        client.seed(
+            "membership_plan",
+            [_plan(id="plan-monthly", name="Monthly"), _plan(id="plan-annual", name="Annual", duration_days=365)],
+        )
+        rows = [
+            _row(line=i, name=f"Member {i}", phone=str(1000 + i), plan_name=("Monthly" if i % 2 == 0 else "Annual"))
+            for i in range(1, 41)  # 40 rows, alternating plans, forces multiple insert chunks if CHUNK_SIZE were small
+        ]
+        result = run_member_import(client, TENANT, rows)
+        assert result["imported"] == 40
+        assert result["subscriptions_started"] == 40
+        assert result["plan_warnings"] == []
+
+        members_by_name = {m["name"]: m for m in client.tables["member"]}
+        subs_by_member_id = {s["member_id"]: s for s in client.tables["subscription"]}
+        for i in range(1, 41):
+            member = members_by_name[f"Member {i}"]
+            sub = subs_by_member_id[member["id"]]
+            expected_plan_id = "plan-monthly" if i % 2 == 0 else "plan-annual"
+            assert sub["plan_id"] == expected_plan_id, f"Member {i} got the wrong plan"

@@ -58,10 +58,16 @@ class _Query:
         if self._mode == "select":
             return _Result(list(self._filtered))
         if self._mode == "insert":
-            row = dict(self._payload)
-            row.setdefault("id", str(uuid.uuid4()))
-            self._rows.append(row)
-            return _Result([row])
+            # Real postgrest-py's .insert() takes either one dict or a list
+            # of dicts (a batch insert in one request) — support both here.
+            payloads = self._payload if isinstance(self._payload, list) else [self._payload]
+            new_rows = []
+            for p in payloads:
+                row = dict(p)
+                row.setdefault("id", str(uuid.uuid4()))
+                self._rows.append(row)
+                new_rows.append(row)
+            return _Result(new_rows)
         if self._mode == "update":
             for r in self._filtered:
                 r.update(self._payload)

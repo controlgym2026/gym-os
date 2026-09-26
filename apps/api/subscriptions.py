@@ -126,6 +126,40 @@ class DuplicateActiveSubscription(Exception):
     and keeps going)."""
 
 
+def build_subscription_payload(
+    tenant_id: str,
+    member_id: str,
+    plan: dict,
+    *,
+    start_date: date | None = None,
+    auto_renew: bool = False,
+    due_amount: float = 0,
+) -> dict:
+    """Pure: the subscription insert payload for `member_id` starting
+    `plan`. Shared by start_subscription (the single-subscription path,
+    with the duplicate-active-check below) and member_import.py's batch
+    path (which skips that check — a member just created by the same
+    import can't already have a subscription, so there's nothing to
+    check, and checking per-row is exactly what made large imports slow).
+    """
+    start = start_date or date.today()
+    payload: dict = {
+        "tenant_id": tenant_id,
+        "member_id": member_id,
+        "plan_id": plan["id"],
+        "start_date": start.isoformat(),
+        "auto_renew": auto_renew,
+        "due_amount": due_amount,
+        "status": "ACTIVE",
+    }
+    if plan["session_limit"] is not None:
+        payload["sessions_remaining"] = plan["session_limit"]
+        payload["end_date"] = None
+    else:
+        payload["end_date"] = (start + timedelta(days=plan["duration_days"])).isoformat()
+    return payload
+
+
 def start_subscription(
     client,
     tenant_id: str,
@@ -147,22 +181,9 @@ def start_subscription(
     if get_active_subscription(client, tenant_id, member_id) is not None:
         raise DuplicateActiveSubscription()
 
-    start = start_date or date.today()
-    payload: dict = {
-        "tenant_id": tenant_id,
-        "member_id": member_id,
-        "plan_id": plan["id"],
-        "start_date": start.isoformat(),
-        "auto_renew": auto_renew,
-        "due_amount": due_amount,
-        "status": "ACTIVE",
-    }
-    if plan["session_limit"] is not None:
-        payload["sessions_remaining"] = plan["session_limit"]
-        payload["end_date"] = None
-    else:
-        payload["end_date"] = (start + timedelta(days=plan["duration_days"])).isoformat()
-
+    payload = build_subscription_payload(
+        tenant_id, member_id, plan, start_date=start_date, auto_renew=auto_renew, due_amount=due_amount
+    )
     try:
         result = client.table("subscription").insert(payload).execute()
     except Exception as exc:
