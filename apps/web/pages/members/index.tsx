@@ -6,7 +6,7 @@ import MemberDetailsModal from "@/components/MemberDetailsModal";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
-import type { Member, MemberImportResult, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
+import type { Member, MemberImportResult, MembershipPlan, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 
@@ -50,6 +50,23 @@ export default function MembersPage() {
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
+  // Onboarding plan/payment — optional, matches EarlyRenewForm's fields so a
+  // brand-new member can be enrolled in one step instead of "add member"
+  // then separately "start a subscription" then separately "log a payment".
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [planId, setPlanId] = useState("");
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [amountPaid, setAmountPaid] = useState("");
+  const [discount, setDiscount] = useState("0");
+  const [method, setMethod] = useState<"cash" | "card" | "upi" | "other">("cash");
+  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+
+  function selectPlan(id: string) {
+    setPlanId(id);
+    const p = plans.find((pl) => pl.id === id);
+    setAmountPaid(p ? String(p.price) : "");
+  }
+
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
@@ -80,6 +97,15 @@ export default function MembersPage() {
 
   useEffect(() => {
     if (session) loadMembers(session.access_token, "", 1);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    apiFetch<MembershipPlan[]>("/membership-plans", { token: session.access_token })
+      .then(setPlans)
+      .catch(() => {
+        /* plan picker is optional at add-time; a failed fetch just leaves it empty */
+      });
   }, [session]);
 
   function handleSearch(e: FormEvent) {
@@ -122,10 +148,34 @@ export default function MembersPage() {
         }
       }
 
+      // Plan is optional — a member can be added with no plan and assigned
+      // one later via "Assign Plan" in the details modal.
+      if (selectedPlan) {
+        const paid = Number(amountPaid) || 0;
+        const dueAmount = Math.max(0, selectedPlan.price - Number(discount || 0) - paid);
+        const sub = await apiFetch<{ id: string }>(`/members/${member.id}/subscriptions`, {
+          method: "POST",
+          token: session.access_token,
+          body: { plan_id: selectedPlan.id, start_date: startDate, due_amount: dueAmount },
+        });
+        if (paid > 0) {
+          await apiFetch(`/subscriptions/${sub.id}/payments`, {
+            method: "POST",
+            token: session.access_token,
+            body: { amount: paid, method, discount_amount: Number(discount) || 0, status: "completed" },
+          });
+        }
+      }
+
       setName("");
       setPhone("");
       setEmail("");
       setPhotoFile(null);
+      setPlanId("");
+      setStartDate(new Date().toISOString().slice(0, 10));
+      setAmountPaid("");
+      setDiscount("0");
+      setMethod("cash");
       setShowForm(false);
       await loadMembers(session.access_token, q, page);
     } catch (err) {
@@ -263,6 +313,91 @@ export default function MembersPage() {
                 onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
               />
             </label>
+
+            <hr className="my-1" />
+            <p className="text-sm font-medium">Plan (optional — assign one now or later)</p>
+            <label className="flex flex-col gap-1 text-sm">
+              Plan
+              <select
+                className="border rounded px-3 py-2"
+                value={planId}
+                onChange={(e) => selectPlan(e.target.value)}
+              >
+                <option value="">No plan yet</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — ₹{p.price}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedPlan && (
+              <>
+                <p className="text-xs opacity-70">
+                  {selectedPlan.session_limit
+                    ? `${selectedPlan.session_limit} sessions`
+                    : `${selectedPlan.duration_days} days`}{" "}
+                  · ₹{selectedPlan.price}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex flex-col gap-1 text-sm">
+                    Start date
+                    <input
+                      type="date"
+                      className="border rounded px-3 py-2"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    Amount paid
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="border rounded px-3 py-2"
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    Discount given
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="border rounded px-3 py-2"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    Payment method
+                    <select
+                      className="border rounded px-3 py-2"
+                      value={method}
+                      onChange={(e) => setMethod(e.target.value as typeof method)}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="upi">UPI</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="text-xs opacity-70">
+                  {selectedPlan.session_limit
+                    ? `${selectedPlan.session_limit} sessions, no expiry date`
+                    : `Expires ${new Date(
+                        new Date(startDate).getTime() + selectedPlan.duration_days * 86_400_000,
+                      ).toLocaleDateString()}`}{" "}
+                  (set automatically from the plan and start date — correct it afterwards from the member&rsquo;s
+                  page if needed). Due amount: ₹
+                  {Math.max(0, selectedPlan.price - (Number(discount) || 0) - (Number(amountPaid) || 0))}
+                </p>
+              </>
+            )}
+
             {error && <p className="text-red-600 text-sm">{error}</p>}
             <button
               type="submit"

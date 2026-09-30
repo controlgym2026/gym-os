@@ -191,11 +191,10 @@ export default function MemberDetailsModal({
               🔁 Early Renew
             </button>
             <button
-              onClick={() => setView("edit")}
-              disabled={!current}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50 disabled:opacity-40"
+              onClick={() => setView(current ? "edit" : "early-renew")}
+              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
             >
-              ✏️ Edit Membership
+              {current ? "✏️ Edit Membership" : "➕ Assign Plan"}
             </button>
             <button
               onClick={handleTogglePause}
