@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/useAuth";
+import Logo from "./Logo";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -27,23 +28,30 @@ export default function NavBar() {
   const links = isSuperAdmin ? [...LINKS, { href: "/admin", label: "Admin" }] : LINKS;
 
   return (
-    <nav className="flex items-center gap-4 border-b px-4 py-3 text-sm">
-      {links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={
-            router.pathname === link.href || router.pathname.startsWith(`${link.href}/`)
-              ? "font-semibold underline"
-              : "opacity-80 hover:opacity-100"
-          }
-        >
-          {link.label}
+    <nav className="bg-black">
+      <div className="flex items-center gap-6 px-4 py-3 text-sm flex-wrap">
+        <Link href="/" className="shrink-0">
+          <Logo variant="dark" size="sm" />
         </Link>
-      ))}
-      <button onClick={handleSignOut} className="ml-auto opacity-70 hover:opacity-100">
-        Sign out
-      </button>
+        {links.map((link) => {
+          const active = router.pathname === link.href || router.pathname.startsWith(`${link.href}/`);
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={active ? "font-semibold text-yellow-400" : "text-yellow-100/80 hover:text-yellow-300"}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
+        <button
+          onClick={handleSignOut}
+          className="ml-auto rounded border border-yellow-400 text-yellow-300 px-3 py-1 text-xs hover:bg-yellow-400 hover:text-black transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
     </nav>
   );
 }

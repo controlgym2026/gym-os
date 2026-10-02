@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import Logo from "@/components/Logo";
 
 export default function Login() {
   const router = useRouter();
@@ -24,7 +25,8 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
+    <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
+      <Logo variant="light" size="lg" />
       <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4">
         <h1 className="text-xl font-semibold">Log in</h1>
         <label className="flex flex-col gap-1">
@@ -51,7 +53,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={working}
-          className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+          className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
         >
           {working ? "Logging in…" : "Log in"}
         </button>

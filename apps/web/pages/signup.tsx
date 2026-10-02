@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { apiFetch } from "@/lib/api";
+import Logo from "@/components/Logo";
 
 // Read by index.tsx after email-confirmation + first login, when bootstrap
 // couldn't happen immediately after signUp() below.
@@ -67,7 +68,8 @@ export default function Signup() {
 
   if (status === "check-email") {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8">
+      <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
+        <Logo variant="light" size="lg" />
         <p className="max-w-sm text-center">
           Check <strong>{email}</strong> for a confirmation link, then{" "}
           <Link className="underline" href="/login">
@@ -80,7 +82,8 @@ export default function Signup() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
+    <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
+      <Logo variant="light" size="lg" />
       <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4">
         <h1 className="text-xl font-semibold">Create your gym</h1>
         <label className="flex flex-col gap-1">
@@ -117,7 +120,7 @@ export default function Signup() {
         <button
           type="submit"
           disabled={status === "working"}
-          className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+          className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
         >
           {status === "working" ? "Creating…" : "Sign up"}
         </button>

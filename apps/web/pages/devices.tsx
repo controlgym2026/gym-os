@@ -72,7 +72,7 @@ export default function DevicesPage() {
           <h1 className="text-xl font-semibold">Devices</h1>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
+            className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
           >
             {showForm ? "Cancel" : "Register device"}
           </button>
@@ -106,7 +106,7 @@ export default function DevicesPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+              className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Register"}
             </button>

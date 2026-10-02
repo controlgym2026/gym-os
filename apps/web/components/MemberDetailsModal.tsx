@@ -219,7 +219,7 @@ export default function MemberDetailsModal({
             </button>
           </div>
 
-          <Link href={`/members/${member.id}`} className="text-sm underline text-emerald-700 text-center">
+          <Link href={`/members/${member.id}`} className="text-sm underline text-gray-900 text-center">
             View full profile (attendance, biometric enrollment)
           </Link>
         </div>
@@ -484,7 +484,7 @@ function EarlyRenewForm({
       <button
         type="submit"
         disabled={saving || !selectedPlan}
-        className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50"
+        className="rounded bg-yellow-400 text-black py-2 text-sm disabled:opacity-50"
       >
         {saving ? "Saving…" : "Confirm renewal"}
       </button>
@@ -587,7 +587,7 @@ function EditMemberForm({
       {photoError && <p className="text-red-600 text-sm">{photoError}</p>}
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      <button type="submit" disabled={saving} className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50">
+      <button type="submit" disabled={saving} className="rounded bg-yellow-400 text-black py-2 text-sm disabled:opacity-50">
         {saving ? "Saving…" : "Save changes"}
       </button>
     </form>
@@ -683,7 +683,7 @@ function EditMembershipForm({
         />
       </label>
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      <button type="submit" disabled={saving} className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50">
+      <button type="submit" disabled={saving} className="rounded bg-yellow-400 text-black py-2 text-sm disabled:opacity-50">
         {saving ? "Saving…" : "Save changes"}
       </button>
     </form>

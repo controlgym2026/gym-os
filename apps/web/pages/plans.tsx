@@ -101,7 +101,7 @@ export default function PlansPage() {
           <h1 className="text-xl font-semibold">Membership plans</h1>
           <button
             onClick={showForm ? () => setShowForm(false) : startCreate}
-            className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
+            className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
           >
             {showForm ? "Cancel" : "New plan"}
           </button>
@@ -155,7 +155,7 @@ export default function PlansPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+              className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
             >
               {saving ? "Saving…" : editing ? "Save changes" : "Create plan"}
             </button>

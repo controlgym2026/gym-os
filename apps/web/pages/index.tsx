@@ -137,7 +137,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={working}
-            className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+            className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
           >
             {working ? "Creating…" : "Create gym"}
           </button>
@@ -149,7 +149,7 @@ export default function Home() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <h1 className="text-xl font-semibold text-emerald-950">Dashboard</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
         {summaryError && <p className="text-red-600 text-sm">{summaryError}</p>}
         {summary ? <DashboardSummaryView summary={summary} /> : !summaryError && <p>Loading…</p>}
       </div>

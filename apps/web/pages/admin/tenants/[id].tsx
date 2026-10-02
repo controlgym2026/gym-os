@@ -155,7 +155,7 @@ export default function AdminTenantDetailPage() {
             <button
               type="submit"
               disabled={busy || planTier === tenant.plan_tier}
-              className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
             >
               Save plan
             </button>

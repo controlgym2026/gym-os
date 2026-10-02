@@ -300,7 +300,7 @@ export default function MemberProfilePage() {
               {/* Always visible, not hover-only — a hover affordance never
                   shows up on a phone's touch screen, which is exactly where
                   this button matters most. */}
-              <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-foreground text-background text-sm flex items-center justify-center border-2 border-background">
+              <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-yellow-400 text-black text-sm flex items-center justify-center border-2 border-background">
                 📷
               </span>
             </span>
@@ -317,7 +317,7 @@ export default function MemberProfilePage() {
           </button>
           <button
             onClick={handleCheckIn}
-            className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
+            className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
           >
             Check in
           </button>
@@ -387,7 +387,7 @@ export default function MemberProfilePage() {
               <button
                 type="submit"
                 disabled={savingMember}
-                className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
               >
                 {savingMember ? "Saving…" : "Save"}
               </button>
@@ -433,7 +433,7 @@ export default function MemberProfilePage() {
             <button
               type="submit"
               disabled={savingBiometric || (!!pin && !consent)}
-              className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
             >
               {savingBiometric ? "Saving…" : "Save"}
             </button>
@@ -524,7 +524,7 @@ export default function MemberProfilePage() {
                 <button
                   type="submit"
                   disabled={loggingPayment}
-                  className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
                 >
                   {loggingPayment ? "Saving…" : "Log payment"}
                 </button>
@@ -589,7 +589,7 @@ export default function MemberProfilePage() {
               <button
                 type="submit"
                 disabled={startingSub || !selectedPlanId}
-                className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
               >
                 {startingSub ? "Starting…" : "Start"}
               </button>

@@ -207,7 +207,7 @@ export default function PhotoCapture({
                 type="button"
                 onClick={capture}
                 disabled={busy}
-                className="rounded bg-emerald-600 text-white px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
               >
                 {busy ? "…" : "Capture"}
               </button>

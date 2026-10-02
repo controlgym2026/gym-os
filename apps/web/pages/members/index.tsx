@@ -254,7 +254,7 @@ export default function MembersPage() {
             </button>
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="rounded bg-foreground text-background px-3 py-1.5 text-sm"
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
             >
               {showForm ? "Cancel" : "Add member"}
             </button>
@@ -410,7 +410,7 @@ export default function MembersPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-foreground text-background py-2 disabled:opacity-50"
+              className="rounded bg-yellow-400 text-black py-2 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save member"}
             </button>

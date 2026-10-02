@@ -96,7 +96,7 @@ export default function CheckInPage() {
               <button
                 onClick={() => handleCheckIn(m)}
                 disabled={checkingInId === m.id}
-                className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+                className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
               >
                 {checkingInId === m.id ? "…" : "Check in"}
               </button>

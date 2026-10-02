@@ -131,7 +131,7 @@ export default function UnmatchedAttendancePage() {
                 <button
                   onClick={() => handleEnroll(row)}
                   disabled={!selectedMember[row.id] || busyId === row.id}
-                  className="rounded bg-foreground text-background px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
                 >
                   {busyId === row.id ? "…" : "Enroll"}
                 </button>

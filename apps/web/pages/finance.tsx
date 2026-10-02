@@ -59,13 +59,13 @@ export default function FinancePage() {
     <Layout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-xl font-semibold text-emerald-950">Finance</h1>
+          <h1 className="text-xl font-semibold text-gray-900">Finance</h1>
           <div className="flex items-center gap-2 text-sm">
             {(["this_month", "last_month", "custom"] as Period[]).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`rounded border px-3 py-1.5 ${period === p ? "bg-foreground text-background" : ""}`}
+                className={`rounded border px-3 py-1.5 ${period === p ? "bg-yellow-400 text-black" : ""}`}
               >
                 {p === "this_month" ? "This Month" : p === "last_month" ? "Last Month" : "Custom"}
               </button>
