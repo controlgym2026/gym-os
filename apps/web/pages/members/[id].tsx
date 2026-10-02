@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
+import PhotoCapture from "@/components/PhotoCapture";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
+import { uploadMemberPhoto } from "@/lib/photos";
 import type { Attendance, Member, MembershipPlan, Payment, Subscription } from "@/lib/types";
 
 const FREEZE_RESUME_CANCEL: Record<string, string[]> = {
@@ -30,7 +32,7 @@ function extractErrorDetail(err: unknown, fallback: string): string {
 export default function MemberProfilePage() {
   const router = useRouter();
   const memberId = typeof router.query.id === "string" ? router.query.id : null;
-  const { session, loading } = useAuth();
+  const { session, loading, tenantId } = useAuth();
 
   const [member, setMember] = useState<Member | null>(null);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
@@ -65,6 +67,13 @@ export default function MemberProfilePage() {
   const [editEmail, setEditEmail] = useState("");
   const [savingMember, setSavingMember] = useState(false);
   const [editMemberError, setEditMemberError] = useState<string | null>(null);
+
+  // photo capture — separate from the identity form so an existing member
+  // (e.g. the CSV-imported ones, which have no photo) can get one in a
+  // single step without opening "Edit member" first.
+  const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const planName = (planId: string) => plans.find((p) => p.id === planId)?.name ?? planId;
 
@@ -200,6 +209,21 @@ export default function MemberProfilePage() {
     }
   }
 
+  async function handlePhotoChange(file: File | null) {
+    if (!file || !session || !memberId || !tenantId) return;
+    setSavingPhoto(true);
+    setPhotoError(null);
+    try {
+      await uploadMemberPhoto({ file, tenantId, memberId, token: session.access_token });
+      setShowPhotoCapture(false);
+      await loadAll(session.access_token, memberId);
+    } catch (err) {
+      setPhotoError(extractErrorDetail(err, "Could not save the photo"));
+    } finally {
+      setSavingPhoto(false);
+    }
+  }
+
   function handleOpenEditMember() {
     if (!member) return;
     setEditName(member.name);
@@ -264,7 +288,16 @@ export default function MemberProfilePage() {
     <Layout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
-          <MemberPhoto path={member.photo_url} name={member.name} size={64} />
+          <button
+            onClick={() => setShowPhotoCapture((v) => !v)}
+            title={member.photo_url ? "Change photo" : "Add a photo"}
+            className="relative rounded-full shrink-0 group"
+          >
+            <MemberPhoto path={member.photo_url} name={member.name} size={64} />
+            <span className="absolute inset-0 rounded-full bg-black/50 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              📷
+            </span>
+          </button>
           <div className="flex-1">
             <h1 className="text-xl font-semibold">{member.name}</h1>
             <p className="text-sm opacity-70">{member.phone || "—"} · {member.email || "—"}</p>
@@ -279,6 +312,23 @@ export default function MemberProfilePage() {
             Check in
           </button>
         </div>
+
+        {showPhotoCapture && (
+          <section className="border rounded p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Member photo</h2>
+              <button onClick={() => setShowPhotoCapture(false)} className="text-sm underline">
+                Close
+              </button>
+            </div>
+            <PhotoCapture
+              label={savingPhoto ? "Saving photo…" : "Take or choose a photo — it saves as soon as you capture it"}
+              onPhotoChange={handlePhotoChange}
+              existingPreview={<MemberPhoto path={member.photo_url} name={member.name} size={80} />}
+            />
+            {photoError && <p className="text-red-600 text-sm">{photoError}</p>}
+          </section>
+        )}
 
         {showEditMember && (
           <form onSubmit={handleSaveMember} className="border rounded p-4 flex flex-col gap-3">

@@ -10,8 +10,9 @@ import uuid
 
 
 class _Result:
-    def __init__(self, data):
+    def __init__(self, data, count=None):
         self.data = data
+        self.count = count
 
 
 class _Query:
@@ -20,6 +21,10 @@ class _Query:
         self._filtered = list(rows)
         self._mode = mode
         self._payload = payload
+        # PostgREST's count=exact reports the total matching rows *before*
+        # range/limit is applied (it comes back in Content-Range), so capture
+        # it at the moment the window is narrowed rather than at execute().
+        self._total = None
 
     def select(self, *_args, **_kwargs):
         return self
@@ -50,13 +55,36 @@ class _Query:
         self._filtered.sort(key=lambda r: r.get(col) or "", reverse=desc)
         return self
 
+    def or_(self, expr: str):
+        """Supports just the one shape this codebase builds: comma-separated
+        "col.ilike.%needle%" alternatives (members list search)."""
+        matched = []
+        for row in self._filtered:
+            for clause in expr.split(","):
+                col, op, pattern = clause.split(".", 2)
+                if op != "ilike":
+                    raise NotImplementedError(f"or_ operator '{op}'")
+                value = row.get(col)
+                if value is not None and pattern.strip("%").lower() in str(value).lower():
+                    matched.append(row)
+                    break
+        self._filtered = matched
+        return self
+
+    def range(self, start, end):
+        self._total = len(self._filtered)
+        self._filtered = self._filtered[start : end + 1]
+        return self
+
     def limit(self, n):
+        self._total = len(self._filtered)
         self._filtered = self._filtered[:n]
         return self
 
     def execute(self):
         if self._mode == "select":
-            return _Result(list(self._filtered))
+            total = self._total if self._total is not None else len(self._filtered)
+            return _Result(list(self._filtered), count=total)
         if self._mode == "insert":
             # Real postgrest-py's .insert() takes either one dict or a list
             # of dicts (a batch insert in one request) — support both here.

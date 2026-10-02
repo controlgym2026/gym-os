@@ -8,9 +8,10 @@ never touches the file itself.
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
@@ -59,29 +60,82 @@ def create_member(body: MemberCreate, staff=Depends(get_current_staff)):
     return result.data[0]
 
 
-def _attach_current_subscriptions(client, tenant_id: str, members: list[dict]) -> list[dict]:
-    """Each member's most recent subscription (same "current" convention
-    used everywhere else — most recent by created_at, regardless of status),
-    lazily expired first so a stale-but-still-ACTIVE row doesn't show wrong
-    on the list, with its plan name attached. Powers the members list's Days
-    Left/Expiry/Due/Status columns without an N+1 request per row."""
-    member_ids = [m["id"] for m in members]
-    if not member_ids:
-        return members
+EXPIRING_SOON_DAYS = 7
 
-    subs = (
-        client.table("subscription")
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .in_("member_id", member_ids)
-        .order("created_at", desc=True)
-        .execute()
-        .data
-    )
+# Values accepted by GET /members?filter= — all are predicates on the
+# member's *current subscription*, not on the member row itself.
+MEMBER_FILTERS = ("active", "expiring", "due", "paid")
+
+
+def member_matches_filter(
+    sub: dict | None,
+    filter_name: str | None,
+    plan_id: str | None = None,
+    *,
+    today: date | None = None,
+) -> bool:
+    """Pure: does a member whose current subscription is `sub` belong in the
+    filtered list? `plan_id` and `filter_name` are independent and both are
+    optional — passing both means "this filter AND this plan". A member with
+    no subscription at all matches only the unfiltered case."""
+    if plan_id and (sub is None or sub.get("plan_id") != plan_id):
+        return False
+    if not filter_name:
+        return True
+    if sub is None:
+        return False
+
+    if filter_name == "active":
+        return sub.get("status") == "ACTIVE"
+    if filter_name == "expiring":
+        # "Expires" = still ACTIVE but running out within the window, i.e. a
+        # renewal-followup list. Session-based plans have no end_date and so
+        # never appear here.
+        if sub.get("status") != "ACTIVE" or not sub.get("end_date"):
+            return False
+        days_left = (date.fromisoformat(sub["end_date"]) - (today or date.today())).days
+        return 0 <= days_left <= EXPIRING_SOON_DAYS
+    if filter_name == "due":
+        return (sub.get("due_amount") or 0) > 0
+    if filter_name == "paid":
+        return (sub.get("due_amount") or 0) <= 0
+    return True
+
+
+def _latest_subscriptions_by_member(
+    client, tenant_id: str, member_ids: list[str] | None = None
+) -> dict[str, dict]:
+    """member_id -> that member's current subscription (most recent by
+    created_at regardless of status, the same "current" convention used
+    everywhere else), lazily expired so a stale-but-still-ACTIVE row doesn't
+    read wrong. `member_ids=None` means every member in the tenant — used by
+    the filtered list path, which has to know each member's status before it
+    can decide who's even on the page, and which therefore can't send an
+    .in_() of every member id without blowing the URL length limit."""
+    query = client.table("subscription").select("*").eq("tenant_id", tenant_id)
+    if member_ids is not None:
+        if not member_ids:
+            return {}
+        query = query.in_("member_id", member_ids)
+    subs = query.order("created_at", desc=True).execute().data
+
     latest_by_member: dict[str, dict] = {}
     for s in subs:
         latest_by_member.setdefault(s["member_id"], s)  # first seen per member = most recent (query is desc)
-    latest_by_member = {mid: expire_if_due(client, s) for mid, s in latest_by_member.items()}
+    return {mid: expire_if_due(client, s) for mid, s in latest_by_member.items()}
+
+
+def _attach_current_subscriptions(
+    client, tenant_id: str, members: list[dict], latest_by_member: dict[str, dict] | None = None
+) -> list[dict]:
+    """Attaches each member's current subscription (with its plan name) as
+    `current_subscription`. Powers the members list's Days Left/Expiry/Due/
+    Status columns without an N+1 request per row. `latest_by_member` lets
+    the filtered path pass in the map it already had to compute."""
+    if not members:
+        return members
+    if latest_by_member is None:
+        latest_by_member = _latest_subscriptions_by_member(client, tenant_id, [m["id"] for m in members])
 
     plan_ids = list({s["plan_id"] for s in latest_by_member.values()})
     plans = (
@@ -130,12 +184,48 @@ def _filtered_members_query(client, tenant_id: str, q: str | None):
 
 
 @router.get("")
-def list_members(q: str | None = None, page: int = 1, page_size: int = DEFAULT_PAGE_SIZE, staff=Depends(get_current_staff)):
+def list_members(
+    q: str | None = None,
+    # Annotated (not `= Query(...)`) so the real Python default stays None and
+    # the route is directly callable in tests, not just through HTTP.
+    subscription_filter: Annotated[str | None, Query(alias="filter")] = None,
+    plan_id: str | None = None,
+    page: int = 1,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    staff=Depends(get_current_staff),
+):
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     page = max(1, page)
     page_size = min(max(1, page_size), MAX_PAGE_SIZE)
     offset = (page - 1) * page_size
+
+    if subscription_filter and subscription_filter not in MEMBER_FILTERS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unknown filter '{subscription_filter}' — expected one of {', '.join(MEMBER_FILTERS)}",
+        )
+
+    if subscription_filter or plan_id:
+        # Status/due/plan live on the subscription, not the member row, so
+        # PostgREST can't paginate this for us. Resolve every member's
+        # current subscription (2 queries, not N) and page in Python. Bounded
+        # by one gym's member count, which is what this product is scoped to.
+        members = _filtered_members_query(client, tenant_id, q).order("created_at", desc=True).execute().data
+        latest_by_member = _latest_subscriptions_by_member(client, tenant_id)
+        matched = [
+            m
+            for m in members
+            if member_matches_filter(latest_by_member.get(m["id"]), subscription_filter, plan_id)
+        ]
+        return {
+            "items": _attach_current_subscriptions(
+                client, tenant_id, matched[offset : offset + page_size], latest_by_member
+            ),
+            "total": len(matched),
+            "page": page,
+            "page_size": page_size,
+        }
 
     query = _filtered_members_query(client, tenant_id, q).order("created_at", desc=True)
     try:

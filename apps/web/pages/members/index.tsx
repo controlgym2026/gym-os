@@ -3,9 +3,10 @@ import Link from "next/link";
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import MemberDetailsModal from "@/components/MemberDetailsModal";
+import PhotoCapture from "@/components/PhotoCapture";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
-import { supabase } from "@/lib/supabaseClient";
+import { uploadMemberPhoto } from "@/lib/photos";
 import type { Member, MemberImportResult, MembershipPlan, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
 
 const PAGE_SIZE = 25;
@@ -41,6 +42,8 @@ export default function MembersPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -60,6 +63,7 @@ export default function MembersPage() {
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState<"cash" | "card" | "upi" | "other">("cash");
   const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+  const activePlans = plans.filter((p) => p.is_active); // can't enroll someone into a retired plan
 
   function selectPlan(id: string) {
     setPlanId(id);
@@ -73,10 +77,18 @@ export default function MembersPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
-  async function loadMembers(token: string, query: string, pageNum: number) {
+  async function loadMembers(
+    token: string,
+    query: string,
+    pageNum: number,
+    status: string = statusFilter,
+    plan: string = planFilter,
+  ) {
     try {
       const params = new URLSearchParams({ page: String(pageNum), page_size: String(PAGE_SIZE) });
       if (query) params.set("q", query);
+      if (status) params.set("filter", status);
+      if (plan) params.set("plan_id", plan);
       const result = await apiFetch<PaginatedMembers>(`/members?${params}`, { token });
       // Defensive: fail with a message instead of crashing the page if the
       // response is ever not the shape this page expects (e.g. a stale
@@ -96,12 +108,18 @@ export default function MembersPage() {
   }
 
   useEffect(() => {
-    if (session) loadMembers(session.access_token, "", 1);
-  }, [session]);
+    // Changing a filter reloads from page 1 but keeps whatever search text is
+    // already applied — q is submit-driven (handleSearch), so it's
+    // deliberately not a dependency here.
+    if (session) loadMembers(session.access_token, q, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, statusFilter, planFilter]);
 
   useEffect(() => {
     if (!session) return;
-    apiFetch<MembershipPlan[]>("/membership-plans", { token: session.access_token })
+    // Inactive plans included: members still hold them, so they have to stay
+    // filterable. The add-member picker narrows to active ones separately.
+    apiFetch<MembershipPlan[]>("/membership-plans?include_inactive=true", { token: session.access_token })
       .then(setPlans)
       .catch(() => {
         /* plan picker is optional at add-time; a failed fetch just leaves it empty */
@@ -134,18 +152,12 @@ export default function MembersPage() {
       });
 
       if (photoFile && tenantId) {
-        const ext = photoFile.name.split(".").pop() || "jpg";
-        const path = `${tenantId}/members/${member.id}/photo.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("member-media")
-          .upload(path, photoFile, { upsert: true });
-        if (!uploadError) {
-          await apiFetch(`/members/${member.id}`, {
-            method: "PATCH",
-            token: session.access_token,
-            body: { photo_url: path },
-          });
-        }
+        await uploadMemberPhoto({
+          file: photoFile,
+          tenantId,
+          memberId: member.id,
+          token: session.access_token,
+        });
       }
 
       // Plan is optional — a member can be added with no plan and assigned
@@ -305,14 +317,7 @@ export default function MembersPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Photo
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            <PhotoCapture onPhotoChange={setPhotoFile} />
 
             <hr className="my-1" />
             <p className="text-sm font-medium">Plan (optional — assign one now or later)</p>
@@ -324,7 +329,7 @@ export default function MembersPage() {
                 onChange={(e) => selectPlan(e.target.value)}
               >
                 <option value="">No plan yet</option>
-                {plans.map((p) => (
+                {activePlans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} — ₹{p.price}
                   </option>
@@ -409,17 +414,58 @@ export default function MembersPage() {
           </form>
         )}
 
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <input
-            className="border rounded px-3 py-2 flex-1"
-            placeholder="Search by name or phone"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          <button type="submit" className="rounded border px-3 py-2 text-sm">
-            Search
-          </button>
-        </form>
+        <div className="flex gap-2 flex-wrap items-center">
+          <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[16rem]">
+            <input
+              className="border rounded px-3 py-2 flex-1"
+              placeholder="Search by name or phone"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <button type="submit" className="rounded border px-3 py-2 text-sm">
+              Search
+            </button>
+          </form>
+
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by status"
+          >
+            <option value="">All members</option>
+            <option value="active">Active</option>
+            <option value="expiring">Expiring (next 7 days)</option>
+            <option value="due">Due</option>
+            <option value="paid">Paid</option>
+          </select>
+
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+            aria-label="Filter by plan"
+          >
+            <option value="">All plans</option>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+
+          {(statusFilter || planFilter) && (
+            <button
+              onClick={() => {
+                setStatusFilter("");
+                setPlanFilter("");
+              }}
+              className="rounded border px-3 py-2 text-sm"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         {listError && <p className="text-red-600 text-sm">{listError}</p>}
 
@@ -503,7 +549,7 @@ export default function MembersPage() {
               {members.length === 0 && !listError && (
                 <tr>
                   <td colSpan={7} className="p-4 text-center text-gray-400">
-                    No members yet.
+                    {statusFilter || planFilter || q ? "No members match these filters." : "No members yet."}
                   </td>
                 </tr>
               )}
