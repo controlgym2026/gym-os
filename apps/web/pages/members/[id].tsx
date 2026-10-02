@@ -44,6 +44,7 @@ export default function MemberProfilePage() {
 
   // start-subscription form
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [newSubStartDate, setNewSubStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [newSubDueAmount, setNewSubDueAmount] = useState("0");
   const [startingSub, setStartingSub] = useState(false);
 
@@ -135,9 +136,10 @@ export default function MemberProfilePage() {
       await apiFetch(`/members/${memberId}/subscriptions`, {
         method: "POST",
         token: session.access_token,
-        body: { plan_id: selectedPlanId, due_amount: Number(newSubDueAmount) || 0 },
+        body: { plan_id: selectedPlanId, start_date: newSubStartDate, due_amount: Number(newSubDueAmount) || 0 },
       });
       setSelectedPlanId("");
+      setNewSubStartDate(new Date().toISOString().slice(0, 10));
       setNewSubDueAmount("0");
       await loadAll(session.access_token, memberId);
     } catch (err) {
@@ -291,11 +293,19 @@ export default function MemberProfilePage() {
           <button
             onClick={() => setShowPhotoCapture((v) => !v)}
             title={member.photo_url ? "Change photo" : "Add a photo"}
-            className="relative rounded-xl shrink-0 group"
+            className="flex flex-col items-center gap-1 shrink-0"
           >
-            <MemberPhoto path={member.photo_url} name={member.name} size={112} shape="square" />
-            <span className="absolute inset-0 rounded-xl bg-black/50 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              📷
+            <span className="relative rounded-xl">
+              <MemberPhoto path={member.photo_url} name={member.name} size={112} shape="square" />
+              {/* Always visible, not hover-only — a hover affordance never
+                  shows up on a phone's touch screen, which is exactly where
+                  this button matters most. */}
+              <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-foreground text-background text-sm flex items-center justify-center border-2 border-background">
+                📷
+              </span>
+            </span>
+            <span className="text-xs underline opacity-80">
+              {member.photo_url ? "Change photo" : "Add photo"}
             </span>
           </button>
           <div className="flex-1">
@@ -333,6 +343,9 @@ export default function MemberProfilePage() {
         {showEditMember && (
           <form onSubmit={handleSaveMember} className="border rounded p-4 flex flex-col gap-3">
             <h2 className="font-semibold">Edit member</h2>
+            <p className="text-xs opacity-70">
+              Plan, start/end date and due amount are edited in the Subscription section below, not here.
+            </p>
             <label className="flex flex-col gap-1 text-sm">
               Name
               <input
@@ -359,6 +372,16 @@ export default function MemberProfilePage() {
                 onChange={(e) => setEditEmail(e.target.value)}
               />
             </label>
+
+            {/* Photo saves immediately on capture (same as the standalone
+                photo section above) — it isn't part of this form's Save. */}
+            <PhotoCapture
+              label={savingPhoto ? "Saving photo…" : "Photo"}
+              onPhotoChange={handlePhotoChange}
+              existingPreview={<MemberPhoto path={member.photo_url} name={member.name} size={80} shape="square" />}
+            />
+            {photoError && <p className="text-red-600 text-sm">{photoError}</p>}
+
             {editMemberError && <p className="text-red-600 text-sm">{editMemberError}</p>}
             <div className="flex gap-2">
               <button
@@ -523,8 +546,8 @@ export default function MemberProfilePage() {
           )}
 
           {!hasActive && (
-            <form onSubmit={handleStartSubscription} className="flex gap-2 items-end mt-2">
-              <label className="flex flex-col gap-1 text-sm flex-1">
+            <form onSubmit={handleStartSubscription} className="flex flex-wrap gap-2 items-end mt-2">
+              <label className="flex flex-col gap-1 text-sm flex-1 min-w-[10rem]">
                 Start a subscription
                 <select
                   className="border rounded px-2 py-1"
@@ -541,6 +564,16 @@ export default function MemberProfilePage() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Start date
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={newSubStartDate}
+                  onChange={(e) => setNewSubStartDate(e.target.value)}
+                  required
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Due amount

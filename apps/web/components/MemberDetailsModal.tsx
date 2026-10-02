@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import MemberPhoto from "./MemberPhoto";
+import PhotoCapture from "./PhotoCapture";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
+import { uploadMemberPhoto } from "@/lib/photos";
 import type { Member, MembershipPlan, Payment, Subscription, TransactionType } from "@/lib/types";
 
 type View = "details" | "early-renew" | "edit" | "edit-member" | "history";
@@ -256,6 +258,7 @@ export default function MemberDetailsModal({
             await refresh();
             setView("details");
           }}
+          onPhotoSaved={refresh}
         />
       )}
 
@@ -332,6 +335,18 @@ function EarlyRenewForm({
 }) {
   const { session } = useAuth();
   const [planId, setPlanId] = useState("");
+  // Not-yet-expired current subscription -> default to carrying the
+  // remaining time forward (starting the new one from its end_date).
+  // Already expired/cancelled (or none, i.e. "Assign Plan") -> default to
+  // today. Either way it's a plain editable field, not a silent default —
+  // that's the one thing this form used to not expose at all.
+  const notYetExpired =
+    current &&
+    (current.status === "ACTIVE" || current.status === "FROZEN") &&
+    (!current.end_date || new Date(current.end_date) >= new Date(new Date().setHours(0, 0, 0, 0)));
+  const [startDate, setStartDate] = useState(
+    () => (notYetExpired && current?.end_date) || new Date().toISOString().slice(0, 10),
+  );
   const [amountPaid, setAmountPaid] = useState("");
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState<"cash" | "card" | "upi" | "other">("cash");
@@ -352,22 +367,12 @@ function EarlyRenewForm({
     setSaving(true);
     setError(null);
     try {
-      // Not-yet-expired current subscription -> cancel it and carry the
-      // remaining time forward by starting the new one from its end_date.
-      // Already expired/cancelled (or none) -> start today.
-      const notYetExpired =
-        current &&
-        (current.status === "ACTIVE" || current.status === "FROZEN") &&
-        (!current.end_date || new Date(current.end_date) >= new Date(new Date().setHours(0, 0, 0, 0)));
-
-      let startDate: string | undefined;
       if (notYetExpired) {
         await apiFetch(`/subscriptions/${current!.id}`, {
           method: "PATCH",
           token: session.access_token,
           body: { status: "CANCELLED" },
         });
-        startDate = current!.end_date ?? undefined;
       }
 
       const paid = Number(amountPaid) || 0;
@@ -425,6 +430,21 @@ function EarlyRenewForm({
         </p>
       )}
       <label className="flex flex-col gap-1 text-sm">
+        Start date
+        {notYetExpired && (
+          <span className="text-xs text-gray-500">
+            Defaults to the current plan&rsquo;s end date so no paid time is lost — change it if that&rsquo;s wrong.
+          </span>
+        )}
+        <input
+          type="date"
+          className="border rounded px-2 py-1.5"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          required
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
         Amount paid now
         <input
           type="number"
@@ -476,17 +496,39 @@ function EditMemberForm({
   member,
   onCancel,
   onDone,
+  onPhotoSaved,
 }: {
   member: Member;
   onCancel: () => void;
   onDone: () => void;
+  /** Reloads the member (so the preview reflects the new photo) without
+   * leaving this form — a photo capture here isn't part of the
+   * name/phone/email Save below, it saves on its own as soon as you take it,
+   * same as everywhere else photo capture appears. */
+  onPhotoSaved: () => Promise<void> | void;
 }) {
-  const { session } = useAuth();
+  const { session, tenantId } = useAuth();
   const [name, setName] = useState(member.name);
   const [phone, setPhone] = useState(member.phone ?? "");
   const [email, setEmail] = useState(member.email ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function handlePhotoChange(file: File | null) {
+    if (!file || !session || !tenantId) return;
+    setSavingPhoto(true);
+    setPhotoError(null);
+    try {
+      await uploadMemberPhoto({ file, tenantId, memberId: member.id, token: session.access_token });
+      await onPhotoSaved();
+    } catch (err) {
+      setPhotoError(extractErrorDetail(err, "Could not save the photo"));
+    } finally {
+      setSavingPhoto(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -536,6 +578,14 @@ function EditMemberForm({
           onChange={(e) => setEmail(e.target.value)}
         />
       </label>
+
+      <PhotoCapture
+        label={savingPhoto ? "Saving photo…" : "Photo"}
+        onPhotoChange={handlePhotoChange}
+        existingPreview={<MemberPhoto path={member.photo_url} name={member.name} size={80} shape="square" />}
+      />
+      {photoError && <p className="text-red-600 text-sm">{photoError}</p>}
+
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <button type="submit" disabled={saving} className="rounded bg-emerald-600 text-white py-2 text-sm disabled:opacity-50">
         {saving ? "Saving…" : "Save changes"}
