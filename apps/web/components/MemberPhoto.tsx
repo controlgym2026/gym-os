@@ -25,12 +25,17 @@ export default function MemberPhoto({
   path,
   name = "",
   size = 40,
+  shape = "circle",
 }: {
   path: string | null;
   name?: string;
   size?: number;
+  /** "circle" for compact/scanning contexts (list rows, small headers);
+   * "square" for a larger identification photo (the member detail page). */
+  shape?: "circle" | "square";
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const roundedClass = shape === "circle" ? "rounded-full" : "rounded-xl";
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +61,7 @@ export default function MemberPhoto({
     return (
       <div
         style={style}
-        className={`rounded-full flex items-center justify-center font-semibold text-white shrink-0 ${colorFor(name || "?")}`}
+        className={`${roundedClass} flex items-center justify-center font-semibold text-white shrink-0 ${colorFor(name || "?")}`}
       >
         {initial}
       </div>
@@ -66,5 +71,5 @@ export default function MemberPhoto({
   // Signed URLs are short-lived and per-viewer — next/image's remote-pattern
   // allowlist isn't a good fit here.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="" style={style} className="rounded-full object-cover shrink-0" />;
+  return <img src={url} alt="" style={style} className={`${roundedClass} object-cover shrink-0`} />;
 }

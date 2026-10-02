@@ -291,10 +291,10 @@ export default function MemberProfilePage() {
           <button
             onClick={() => setShowPhotoCapture((v) => !v)}
             title={member.photo_url ? "Change photo" : "Add a photo"}
-            className="relative rounded-full shrink-0 group"
+            className="relative rounded-xl shrink-0 group"
           >
-            <MemberPhoto path={member.photo_url} name={member.name} size={64} />
-            <span className="absolute inset-0 rounded-full bg-black/50 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <MemberPhoto path={member.photo_url} name={member.name} size={112} shape="square" />
+            <span className="absolute inset-0 rounded-xl bg-black/50 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               📷
             </span>
           </button>
@@ -324,7 +324,7 @@ export default function MemberProfilePage() {
             <PhotoCapture
               label={savingPhoto ? "Saving photo…" : "Take or choose a photo — it saves as soon as you capture it"}
               onPhotoChange={handlePhotoChange}
-              existingPreview={<MemberPhoto path={member.photo_url} name={member.name} size={80} />}
+              existingPreview={<MemberPhoto path={member.photo_url} name={member.name} size={140} shape="square" />}
             />
             {photoError && <p className="text-red-600 text-sm">{photoError}</p>}
           </section>

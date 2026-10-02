@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const MAX_DIMENSION = 640; // plenty for a 40–64px avatar at 2x, keeps uploads small
+const MAX_DIMENSION = 640; // plenty for the ~140px identification photo at 2x, keeps uploads small
 const JPEG_QUALITY = 0.85;
 
 type Mode = "idle" | "camera" | "captured";
 
 /** Center-square crop + downscale + JPEG re-encode, shared by the webcam and
- * file-pick paths. Square because every display of a member photo is a
- * `rounded-full object-cover` avatar, and a phone photo is 3–5MB of detail
- * nobody is going to look at. */
+ * file-pick paths. Square because every display of a member photo (big
+ * identification photo or small list avatar) is an `object-cover` crop, and
+ * a phone photo is 3–5MB of detail nobody is going to look at. */
 function drawToJpeg(
   source: HTMLVideoElement | HTMLImageElement,
   sourceWidth: number,
@@ -188,9 +188,9 @@ export default function PhotoCapture({
       <div className="flex items-center gap-3 flex-wrap">
         {mode === "captured" && preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="" className="w-20 h-20 rounded-full object-cover border" />
+          <img src={preview} alt="" className="w-36 h-36 rounded-xl object-cover border" />
         ) : mode === "idle" ? (
-          existingPreview ?? <div className="w-20 h-20 rounded-full border border-dashed" />
+          existingPreview ?? <div className="w-36 h-36 rounded-xl border border-dashed" />
         ) : null}
 
         {mode === "camera" && (
@@ -199,7 +199,7 @@ export default function PhotoCapture({
               ref={videoRef}
               playsInline
               muted
-              className="w-48 h-48 rounded-lg object-cover bg-black"
+              className="w-64 h-64 rounded-lg object-cover bg-black"
               style={{ transform: "scaleX(-1)" }} /* mirror: a selfie view people expect */
             />
             <div className="flex gap-2">

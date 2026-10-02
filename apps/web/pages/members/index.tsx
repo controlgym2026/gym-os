@@ -9,7 +9,8 @@ import { apiFetch } from "@/lib/api";
 import { uploadMemberPhoto } from "@/lib/photos";
 import type { Member, MemberImportResult, MembershipPlan, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 const STATUS_BADGE: Record<SubscriptionStatus, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
@@ -41,6 +42,7 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
@@ -83,9 +85,10 @@ export default function MembersPage() {
     pageNum: number,
     status: string = statusFilter,
     plan: string = planFilter,
+    size: number = pageSize,
   ) {
     try {
-      const params = new URLSearchParams({ page: String(pageNum), page_size: String(PAGE_SIZE) });
+      const params = new URLSearchParams({ page: String(pageNum), page_size: String(size) });
       if (query) params.set("q", query);
       if (status) params.set("filter", status);
       if (plan) params.set("plan_id", plan);
@@ -108,12 +111,12 @@ export default function MembersPage() {
   }
 
   useEffect(() => {
-    // Changing a filter reloads from page 1 but keeps whatever search text is
-    // already applied — q is submit-driven (handleSearch), so it's
-    // deliberately not a dependency here.
+    // Changing a filter or page size reloads from page 1 but keeps whatever
+    // search text is already applied — q is submit-driven (handleSearch), so
+    // it's deliberately not a dependency here.
     if (session) loadMembers(session.access_token, q, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, statusFilter, planFilter]);
+  }, [session, statusFilter, planFilter, pageSize]);
 
   useEffect(() => {
     if (!session) return;
@@ -558,11 +561,25 @@ export default function MembersPage() {
         </div>
 
         {total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between flex-wrap gap-2 text-sm text-gray-500">
             <span>
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} members
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} members
             </span>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1">
+                Per page
+                <select
+                  className="border rounded px-2 py-1"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 onClick={() => goToPage(page - 1)}
                 disabled={page <= 1}
@@ -572,7 +589,7 @@ export default function MembersPage() {
               </button>
               <button
                 onClick={() => goToPage(page + 1)}
-                disabled={page * PAGE_SIZE >= total}
+                disabled={page * pageSize >= total}
                 className="rounded border px-3 py-1.5 disabled:opacity-40"
               >
                 Next
