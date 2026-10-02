@@ -31,7 +31,7 @@ export default function NavBar() {
     <nav className="bg-black">
       <div className="flex items-center gap-6 px-4 py-3 text-sm flex-wrap">
         <Link href="/" className="shrink-0">
-          <Logo variant="dark" size="sm" />
+          <Logo size="sm" />
         </Link>
         {links.map((link) => {
           const active = router.pathname === link.href || router.pathname.startsWith(`${link.href}/`);

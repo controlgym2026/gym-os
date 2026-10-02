@@ -69,7 +69,7 @@ export default function Signup() {
   if (status === "check-email") {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
-        <Logo variant="light" size="lg" />
+        <Logo full size="lg" />
         <p className="max-w-sm text-center">
           Check <strong>{email}</strong> for a confirmation link, then{" "}
           <Link className="underline" href="/login">
@@ -83,7 +83,7 @@ export default function Signup() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
-      <Logo variant="light" size="lg" />
+      <Logo full size="lg" />
       <form onSubmit={handleSubmit} className="w-full max-w-sm flex flex-col gap-4">
         <h1 className="text-xl font-semibold">Create your gym</h1>
         <label className="flex flex-col gap-1">

@@ -1,44 +1,58 @@
-/** "Gym Control" wordmark — a custom black/yellow barbell badge plus the
- * name and the "Product of Livnexa Care Pvt Ltd" tagline. `variant`
- * controls the wordmark/tagline text color for whichever background it
- * sits on: "dark" for the black nav bar, "light" for white page
- * backgrounds (login/signup) — the badge itself is self-contained and
- * doesn't need to change either way. */
+import Image from "next/image";
+
+/** The real "Gym Control" artwork (apps/web/public/logo*.png), in two forms:
+ *
+ * - compact (default): just the icon mark (logo-mark.png) plus a plain-text
+ *   "GYM CONTROL" wordmark + tagline styled for whatever's using it — this
+ *   is what fits a thin horizontal nav bar, where the full lockup's tall
+ *   stacked composition would shrink to illegible slivers.
+ * - full: the designed lockup (logo-full.png — mark + wordmark + tagline +
+ *   "Product of Livnexa Care Pvt Ltd", all baked into the artwork). Its
+ *   wordmark is rendered in white/light-gray with no backing of its own, so
+ *   it's only legible on a dark surface — this mode wraps it in a black
+ *   card itself rather than relying on every caller to remember that.
+ */
 export default function Logo({
-  variant = "dark",
+  full = false,
   size = "md",
 }: {
-  variant?: "dark" | "light";
+  full?: boolean;
   size?: "sm" | "md" | "lg";
 }) {
-  const iconPx = size === "lg" ? 44 : size === "sm" ? 28 : 36;
+  if (full) {
+    const px = size === "lg" ? 240 : size === "sm" ? 140 : 180;
+    return (
+      <div className="bg-black rounded-2xl p-6 inline-flex items-center justify-center">
+        <Image
+          src="/logo-full.png"
+          alt="Gym Control — Product of Livnexa Care Pvt Ltd"
+          width={640}
+          height={640}
+          style={{ width: px, height: "auto" }}
+          priority
+        />
+      </div>
+    );
+  }
+
+  const iconH = size === "lg" ? 48 : size === "sm" ? 28 : 36;
   const wordmarkClass = size === "lg" ? "text-2xl" : size === "sm" ? "text-sm" : "text-lg";
   const taglineClass = size === "lg" ? "text-xs" : "text-[10px]";
-  const wordmarkColor = variant === "dark" ? "text-yellow-400" : "text-black";
-  const taglineColor = variant === "dark" ? "text-yellow-100/70" : "text-gray-500";
 
   return (
     <span className="inline-flex items-center gap-2">
-      <BarbellBadge size={iconPx} />
+      <Image
+        src="/logo-mark.png"
+        alt="Gym Control"
+        width={400}
+        height={265}
+        style={{ height: iconH, width: "auto" }}
+        priority
+      />
       <span className="flex flex-col leading-tight">
-        <span className={`font-extrabold tracking-wide ${wordmarkClass} ${wordmarkColor}`}>GYM CONTROL</span>
-        <span className={`${taglineClass} ${taglineColor}`}>Product of Livnexa Care Pvt Ltd</span>
+        <span className={`font-extrabold tracking-wide text-yellow-400 ${wordmarkClass}`}>GYM CONTROL</span>
+        <span className={`text-yellow-100/70 ${taglineClass}`}>Product of Livnexa Care Pvt Ltd</span>
       </span>
     </span>
-  );
-}
-
-function BarbellBadge({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" className="shrink-0" aria-hidden="true">
-      <rect x="2" y="2" width="44" height="44" rx="10" fill="#000000" />
-      <rect x="2" y="2" width="44" height="44" rx="10" fill="none" stroke="#facc15" strokeWidth="2" />
-      {/* barbell: bar + two graduated weight plates each side */}
-      <rect x="7" y="21" width="4" height="10" rx="1" fill="#facc15" />
-      <rect x="12" y="19" width="3" height="14" rx="1" fill="#facc15" />
-      <rect x="15" y="23" width="18" height="2" fill="#facc15" />
-      <rect x="33" y="19" width="3" height="14" rx="1" fill="#facc15" />
-      <rect x="37" y="21" width="4" height="10" rx="1" fill="#facc15" />
-    </svg>
   );
 }
