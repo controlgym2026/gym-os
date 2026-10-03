@@ -23,10 +23,23 @@ export default function AdminTenantDetailPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Gym Control subscription (Livnexa Care's own billing relationship with
+  // this gym — separate from the gym's own member subscriptions/payments).
+  const [expiresAt, setExpiresAt] = useState("");
+  const [memberLimit, setMemberLimit] = useState("");
+  const [deviceLimit, setDeviceLimit] = useState("");
+  const [branchLimit, setBranchLimit] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+
   async function load(token: string, id: string) {
     const t = await apiFetch<TenantDetail>(`/admin/tenants/${id}`, { token });
     setTenant(t);
     setPlanTier(t.plan_tier);
+    setExpiresAt(t.subscription_expires_at ?? "");
+    setMemberLimit(t.member_limit !== null ? String(t.member_limit) : "");
+    setDeviceLimit(t.device_limit !== null ? String(t.device_limit) : "");
+    setBranchLimit(t.branch_limit !== null ? String(t.branch_limit) : "");
   }
 
   useEffect(() => {
@@ -81,6 +94,72 @@ export default function AdminTenantDetailPage() {
     }
   }
 
+  async function handleSaveSubscription(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !tenantId || !expiresAt) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/admin/tenants/${tenantId}`, {
+        method: "PATCH",
+        token: session.access_token,
+        body: { subscription_expires_at: expiresAt, note: note || undefined },
+      });
+      setNote("");
+      await load(session.access_token, tenantId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the subscription date");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveLimits(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !tenantId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/admin/tenants/${tenantId}`, {
+        method: "PATCH",
+        token: session.access_token,
+        body: {
+          member_limit: memberLimit ? Number(memberLimit) : undefined,
+          device_limit: deviceLimit ? Number(deviceLimit) : undefined,
+          branch_limit: branchLimit ? Number(branchLimit) : undefined,
+          note: note || undefined,
+        },
+      });
+      setNote("");
+      await load(session.access_token, tenantId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update resource limits");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRecordPayment(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !tenantId || !paymentAmount) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/admin/tenants/${tenantId}/payments`, {
+        method: "POST",
+        token: session.access_token,
+        body: { amount: Number(paymentAmount), note: paymentNote || undefined },
+      });
+      setPaymentAmount("");
+      setPaymentNote("");
+      await load(session.access_token, tenantId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record the payment");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading || !session || !isSuperAdmin || !tenantId) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -104,7 +183,8 @@ export default function AdminTenantDetailPage() {
           <h1 className="text-xl font-semibold">{tenant.name}</h1>
           <p className="text-sm opacity-70">
             {tenant.member_count} members · {tenant.active_subscription_count} active subscriptions ·{" "}
-            {tenant.device_count} devices · created {new Date(tenant.created_at).toLocaleDateString()}
+            {tenant.device_count} devices · {tenant.branch_count} branches · created{" "}
+            {new Date(tenant.created_at).toLocaleDateString()}
           </p>
         </div>
 
@@ -158,6 +238,146 @@ export default function AdminTenantDetailPage() {
               className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
             >
               Save plan
+            </button>
+          </form>
+        </section>
+
+        <section className="border rounded p-4 flex flex-col gap-3">
+          <h2 className="font-semibold">Gym Control subscription (Livnexa Care billing)</h2>
+          <p className="text-sm">
+            {tenant.subscription_expires_at ? (
+              <>
+                Renews/expires <strong>{new Date(tenant.subscription_expires_at).toLocaleDateString()}</strong>
+                {tenant.subscription_days_remaining !== null && (
+                  <span
+                    className={
+                      tenant.subscription_days_remaining < 0
+                        ? " text-red-600 font-medium"
+                        : tenant.subscription_days_remaining <= 7
+                          ? " text-amber-600 font-medium"
+                          : " text-gray-500"
+                    }
+                  >
+                    {" "}
+                    (
+                    {tenant.subscription_days_remaining < 0
+                      ? `expired ${Math.abs(tenant.subscription_days_remaining)}d ago`
+                      : `${tenant.subscription_days_remaining}d left`}
+                    )
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="opacity-60">No subscription date set yet.</span>
+            )}
+          </p>
+          <form onSubmit={handleSaveSubscription} className="flex gap-2 items-end">
+            <label className="flex flex-col gap-1 text-sm">
+              Expires on
+              <input
+                type="date"
+                className="border rounded px-3 py-2"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy || !expiresAt}
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Save date
+            </button>
+          </form>
+        </section>
+
+        <section className="border rounded p-4 flex flex-col gap-3">
+          <h2 className="font-semibold">Resource limits</h2>
+          <p className="text-xs opacity-70">
+            Display-only for now — shown as usage/limit on the dashboard, not enforced against creating new
+            members/devices/branches.
+          </p>
+          <form onSubmit={handleSaveLimits} className="flex flex-wrap gap-3 items-end">
+            <label className="flex flex-col gap-1 text-sm">
+              Member limit
+              <input
+                type="number"
+                min={1}
+                className="border rounded px-3 py-2 w-28"
+                placeholder="Unlimited"
+                value={memberLimit}
+                onChange={(e) => setMemberLimit(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Device limit
+              <input
+                type="number"
+                min={1}
+                className="border rounded px-3 py-2 w-28"
+                placeholder="Unlimited"
+                value={deviceLimit}
+                onChange={(e) => setDeviceLimit(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Branch limit
+              <input
+                type="number"
+                min={1}
+                className="border rounded px-3 py-2 w-28"
+                placeholder="Unlimited"
+                value={branchLimit}
+                onChange={(e) => setBranchLimit(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Save limits
+            </button>
+          </form>
+        </section>
+
+        <section className="border rounded p-4 flex flex-col gap-3">
+          <h2 className="font-semibold">
+            Paid to Livnexa Care — <span className="font-normal">₹{tenant.amount_paid.toLocaleString()}</span>
+          </h2>
+          <p className="text-xs opacity-70">
+            What this gym has paid for Gym Control — unrelated to their own members&rsquo; payments. Recording a
+            payment adds to the running total below, rather than replacing it.
+          </p>
+          <form onSubmit={handleRecordPayment} className="flex flex-wrap gap-2 items-end">
+            <label className="flex flex-col gap-1 text-sm">
+              Amount received
+              <input
+                type="number"
+                min={0.01}
+                step="0.01"
+                className="border rounded px-3 py-2 w-32"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm flex-1 min-w-[12rem]">
+              Note (optional)
+              <input
+                className="border rounded px-3 py-2"
+                placeholder="e.g. UPI transfer, annual renewal"
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy || !paymentAmount}
+              className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Record payment
             </button>
           </form>
         </section>

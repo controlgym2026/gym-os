@@ -38,6 +38,15 @@ export type Tenant = {
   member_count: number;
   active_subscription_count: number;
   device_count: number;
+  branch_count: number;
+  // Livnexa Care's own commercial relationship with this gym — separate
+  // from the gym's own member subscriptions/payments above.
+  subscription_expires_at: string | null;
+  subscription_days_remaining: number | null; // null when subscription_expires_at is null
+  amount_paid: number;
+  member_limit: number | null; // null = unlimited/not set
+  device_limit: number | null;
+  branch_limit: number | null;
 };
 
 export type TenantAuditLogEntry = {
