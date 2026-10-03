@@ -13,6 +13,14 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // getSession() resolves near-instantly (reads local storage), but
+  // isSuperAdmin/tenantId only become accurate after the /auth/me round
+  // trip below finishes — they start at their false/null defaults. A page
+  // that gates a decision (e.g. admin pages redirecting non-admins away)
+  // on `loading` alone would act on that stale default before the real
+  // value ever arrives. profileLoaded tracks the /auth/me call specifically
+  // so `loading` below covers both steps, not just session resolution.
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -36,12 +44,13 @@ export function useAuth() {
       .catch(() => {
         setTenantId(null);
         setIsSuperAdmin(false);
-      });
+      })
+      .finally(() => setProfileLoaded(true));
   }, [session, router]);
 
   return {
     session: session ?? null,
-    loading: session === undefined,
+    loading: session === undefined || (session !== null && !profileLoaded),
     tenantId,
     isSuperAdmin,
   };
