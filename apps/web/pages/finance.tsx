@@ -38,13 +38,16 @@ export default function FinancePage() {
     return { from: customFrom, to: customTo };
   }, [period, customFrom, customTo]);
 
-  useEffect(() => {
-    if (!session) return;
-    apiFetch<DashboardSummary>(`/dashboard/summary?from=${range.from}&to=${range.to}`, {
-      token: session.access_token,
-    })
+  function loadSummary(token: string) {
+    apiFetch<DashboardSummary>(`/dashboard/summary?from=${range.from}&to=${range.to}`, { token })
       .then(setSummary)
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load finance report"));
+  }
+
+  useEffect(() => {
+    if (!session) return;
+    loadSummary(session.access_token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, range]);
 
   if (loading || !session) {
@@ -94,7 +97,11 @@ export default function FinancePage() {
         </p>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        {summary ? <DashboardSummaryView summary={summary} /> : !error && <p>Loading…</p>}
+        {summary ? (
+          <DashboardSummaryView summary={summary} onMemberChanged={() => session && loadSummary(session.access_token)} />
+        ) : (
+          !error && <p>Loading…</p>
+        )}
       </div>
     </Layout>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import Layout from "@/components/Layout";
+import MemberDetailsModal from "@/components/MemberDetailsModal";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { AttendanceUnmatched, Device, Member, PaginatedMembers } from "@/lib/types";
@@ -19,11 +19,10 @@ export default function UnmatchedAttendancePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!session) return;
-    const token = session.access_token;
-    Promise.all([
+  function loadAll(token: string) {
+    return Promise.all([
       apiFetch<AttendanceUnmatched[]>("/attendance/unmatched", { token }),
       apiFetch<Device[]>("/devices", { token }),
       // Big page rather than a second pagination UI here — this just
@@ -36,6 +35,11 @@ export default function UnmatchedAttendancePage() {
         setMembers(m.items);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load"));
+  }
+
+  useEffect(() => {
+    if (!session) return;
+    loadAll(session.access_token);
   }, [session]);
 
   const deviceLabel = useMemo(() => {
@@ -156,9 +160,9 @@ export default function UnmatchedAttendancePage() {
                 <div className="flex flex-col text-sm flex-1 min-w-[10rem]">
                   <span className="font-medium">
                     {row.member_id ? (
-                      <Link href={`/members/${row.member_id}`} className="underline">
+                      <button onClick={() => setSelectedMemberId(row.member_id)} className="underline">
                         {memberName(row.member_id)}
-                      </Link>
+                      </button>
                     ) : (
                       "Unknown member"
                     )}
@@ -176,6 +180,14 @@ export default function UnmatchedAttendancePage() {
           </ul>
         </section>
       </div>
+
+      {selectedMemberId && (
+        <MemberDetailsModal
+          memberId={selectedMemberId}
+          onClose={() => setSelectedMemberId(null)}
+          onChanged={() => session && loadAll(session.access_token)}
+        />
+      )}
     </Layout>
   );
 }

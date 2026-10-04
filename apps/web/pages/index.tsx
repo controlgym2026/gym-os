@@ -61,11 +61,15 @@ export default function Home() {
 
   // Once we know the user has a staff row (a tenant), load this month's
   // dashboard summary — the default range on GET /dashboard/summary.
-  useEffect(() => {
-    if (!session || !me?.staff) return;
-    apiFetch<DashboardSummary>("/dashboard/summary", { token: session.access_token })
+  function loadSummary(token: string) {
+    apiFetch<DashboardSummary>("/dashboard/summary", { token })
       .then(setSummary)
       .catch((err) => setSummaryError(err instanceof Error ? err.message : "Could not load dashboard"));
+  }
+
+  useEffect(() => {
+    if (!session || !me?.staff) return;
+    loadSummary(session.access_token);
   }, [session, me]);
 
   async function handleBootstrap(e: FormEvent) {
@@ -151,7 +155,14 @@ export default function Home() {
       <div className="flex flex-col gap-6">
         <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
         {summaryError && <p className="text-red-600 text-sm">{summaryError}</p>}
-        {summary ? <DashboardSummaryView summary={summary} /> : !summaryError && <p>Loading…</p>}
+        {summary ? (
+          <DashboardSummaryView
+            summary={summary}
+            onMemberChanged={() => session && loadSummary(session.access_token)}
+          />
+        ) : (
+          !summaryError && <p>Loading…</p>
+        )}
       </div>
     </Layout>
   );

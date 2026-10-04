@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useState } from "react";
+import MemberDetailsModal from "./MemberDetailsModal";
 import type { DashboardSummary, TransactionType } from "@/lib/types";
 
 const TYPE_LABEL: Record<TransactionType, string> = {
@@ -68,8 +69,22 @@ function CategoryCard({
  * DashboardSummary. Shared between "/" and "/finance" so the two pages
  * render identically, just fed different date ranges. One white surface
  * throughout (matching the app's single fixed light theme) — green is an
- * accent (icons, numbers, badges), never a card background. */
-export default function DashboardSummaryView({ summary }: { summary: DashboardSummary }) {
+ * accent (icons, numbers, badges), never a card background.
+ *
+ * A transaction's member name opens the same member-details popup the
+ * members list uses, rather than navigating away — `onMemberChanged` is an
+ * optional hook for the caller to refresh its own summary fetch if an edit
+ * in that popup (e.g. a payment logged via Early Renew) should be
+ * reflected immediately. */
+export default function DashboardSummaryView({
+  summary,
+  onMemberChanged,
+}: {
+  summary: DashboardSummary;
+  onMemberChanged?: () => void;
+}) {
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+
   return (
     <div className="flex flex-col gap-6 w-full">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -114,9 +129,12 @@ export default function DashboardSummaryView({ summary }: { summary: DashboardSu
                   <td className="p-2.5 font-medium text-gray-900">{fmtMoney(t.amount)}</td>
                   <td className="p-2.5">
                     {t.member_id ? (
-                      <Link href={`/members/${t.member_id}`} className="underline text-gray-900 hover:opacity-70">
+                      <button
+                        onClick={() => setSelectedMemberId(t.member_id)}
+                        className="underline text-gray-900 hover:opacity-70 text-left"
+                      >
                         {t.member_name}
-                      </Link>
+                      </button>
                     ) : (
                       <span className="text-gray-900">{t.member_name}</span>
                     )}
@@ -145,6 +163,14 @@ export default function DashboardSummaryView({ summary }: { summary: DashboardSu
           </table>
         </div>
       </div>
+
+      {selectedMemberId && (
+        <MemberDetailsModal
+          memberId={selectedMemberId}
+          onClose={() => setSelectedMemberId(null)}
+          onChanged={() => onMemberChanged?.()}
+        />
+      )}
     </div>
   );
 }
