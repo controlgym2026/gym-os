@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import Link from "next/link";
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import MemberDetailsModal from "@/components/MemberDetailsModal";
@@ -491,13 +490,16 @@ export default function MembersPage() {
                 return (
                   <tr key={m.id} className="border-t border-gray-100">
                     <td className="p-3">
-                      <Link href={`/members/${m.id}`} className="flex items-center gap-3 hover:underline">
+                      <button
+                        onClick={() => setSelectedMemberId(m.id)}
+                        className="flex items-center gap-3 text-left hover:underline"
+                      >
                         <MemberPhoto path={m.photo_url} name={m.name} />
                         <div className="flex flex-col">
                           <span className="font-medium text-gray-900">{m.name}</span>
                           <span className="text-xs text-gray-400">#{shortId(m.id)}</span>
                         </div>
-                      </Link>
+                      </button>
                     </td>
                     <td className="p-3 text-gray-700">{m.phone || "—"}</td>
                     {sub ? (
@@ -537,13 +539,6 @@ export default function MembersPage() {
                         ) : (
                           <span className="w-8 h-8" />
                         )}
-                        <button
-                          onClick={() => setSelectedMemberId(m.id)}
-                          title="View details"
-                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-50"
-                        >
-                          👁️
-                        </button>
                       </div>
                     </td>
                   </tr>
