@@ -15,6 +15,15 @@ const FREEZE_RESUME_CANCEL: Record<string, string[]> = {
   CANCELLED: [],
 };
 
+// Same convention as the members list's status badge — solid red for
+// EXPIRED (needs action), a duller red for CANCELLED (already closed).
+const STATUS_BADGE: Record<string, string> = {
+  ACTIVE: "bg-emerald-100 text-emerald-700",
+  FROZEN: "bg-blue-100 text-blue-700",
+  EXPIRED: "bg-red-600 text-white",
+  CANCELLED: "bg-red-50 text-red-400",
+};
+
 function fmtDate(s: string | null) {
   return s ? new Date(s).toLocaleDateString() : "—";
 }
@@ -450,13 +459,31 @@ export default function MemberProfilePage() {
           {current ? (
             <>
               <p className="text-sm">
-                <strong>{planName(current.plan_id)}</strong> — {current.status}
+                <strong>{planName(current.plan_id)}</strong>{" "}
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[current.status] ?? ""}`}
+                >
+                  {current.status.charAt(0) + current.status.slice(1).toLowerCase()}
+                </span>
                 <br />
-                {current.end_date
-                  ? `ends ${fmtDate(current.end_date)}`
-                  : current.sessions_remaining !== null
-                    ? `${current.sessions_remaining} sessions remaining`
-                    : ""}
+                {current.end_date ? (
+                  <>
+                    ends {fmtDate(current.end_date)}
+                    {current.status === "EXPIRED" &&
+                      (() => {
+                        const days = Math.ceil(
+                          (new Date().setHours(0, 0, 0, 0) - new Date(current.end_date!).getTime()) / 86_400_000,
+                        );
+                        return (
+                          <span className="text-red-600 font-medium"> (expired {days}d ago)</span>
+                        );
+                      })()}
+                  </>
+                ) : current.sessions_remaining !== null ? (
+                  `${current.sessions_remaining} sessions remaining`
+                ) : (
+                  ""
+                )}
                 {current.due_amount > 0 && (
                   <>
                     {" · "}

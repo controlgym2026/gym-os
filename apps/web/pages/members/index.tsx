@@ -14,8 +14,12 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const STATUS_BADGE: Record<SubscriptionStatus, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
   FROZEN: "bg-blue-100 text-blue-700",
-  EXPIRED: "bg-gray-100 text-gray-600",
-  CANCELLED: "bg-red-100 text-red-700",
+  // Solid red, not just a light tint — expired is the one status that
+  // actually needs a staff member to do something (follow up, renew).
+  // Cancelled is deliberately a lighter, duller red: a closed/resolved
+  // state, not something sitting there needing action.
+  EXPIRED: "bg-red-600 text-white",
+  CANCELLED: "bg-red-50 text-red-400",
 };
 
 function shortId(id: string) {
@@ -30,7 +34,7 @@ function daysLeftLabel(endDate: string | null, sessionsRemaining: number | null)
   if (endDate) {
     const ms = new Date(endDate).getTime() - new Date().setHours(0, 0, 0, 0);
     const days = Math.ceil(ms / 86_400_000);
-    return days >= 0 ? `${days}d` : "Expired";
+    return days >= 0 ? `${days}d` : `Expired ${Math.abs(days)}d ago`;
   }
   if (sessionsRemaining !== null) return `${sessionsRemaining} sessions`;
   return "—";
@@ -504,7 +508,15 @@ export default function MembersPage() {
                     <td className="p-3 text-gray-700">{m.phone || "—"}</td>
                     {sub ? (
                       <>
-                        <td className="p-3 text-gray-700">{daysLeftLabel(sub.end_date, sub.sessions_remaining)}</td>
+                        <td
+                          className={`p-3 ${
+                            daysLeftLabel(sub.end_date, sub.sessions_remaining).startsWith("Expired")
+                              ? "text-red-600 font-semibold"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {daysLeftLabel(sub.end_date, sub.sessions_remaining)}
+                        </td>
                         <td className="p-3 text-gray-700">{sub.end_date ?? "—"}</td>
                         <td className="p-3">
                           {sub.due_amount > 0 ? (
@@ -539,6 +551,13 @@ export default function MembersPage() {
                         ) : (
                           <span className="w-8 h-8" />
                         )}
+                        <button
+                          onClick={() => setSelectedMemberId(m.id)}
+                          title="View details"
+                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-50"
+                        >
+                          👁️
+                        </button>
                       </div>
                     </td>
                   </tr>

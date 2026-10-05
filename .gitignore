@@ -23,3 +23,7 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Real member data exports (PII) — never belongs in git history
+*members*.csv
+*members*.xlsx
