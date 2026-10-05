@@ -64,7 +64,7 @@ EXPIRING_SOON_DAYS = 7
 
 # Values accepted by GET /members?filter= — all are predicates on the
 # member's *current subscription*, not on the member row itself.
-MEMBER_FILTERS = ("active", "expiring", "due", "paid")
+MEMBER_FILTERS = ("active", "expiring", "expired", "due", "paid")
 
 
 def member_matches_filter(
@@ -95,6 +95,12 @@ def member_matches_filter(
             return False
         days_left = (date.fromisoformat(sub["end_date"]) - (today or date.today())).days
         return 0 <= days_left <= EXPIRING_SOON_DAYS
+    if filter_name == "expired":
+        # Already lapsed, as opposed to "expiring" (still active, running
+        # out soon) — lazy-expiry has already run by the time this is
+        # called, so a date-based subscription past its end_date is already
+        # status == "EXPIRED" here, not stale ACTIVE.
+        return sub.get("status") == "EXPIRED"
     if filter_name == "due":
         return (sub.get("due_amount") or 0) > 0
     if filter_name == "paid":

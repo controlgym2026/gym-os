@@ -29,7 +29,7 @@ class TestNoFilter:
         assert member_matches_filter(None, None, None, today=TODAY)
 
     def test_member_with_no_subscription_never_matches_a_filter(self):
-        for f in ("active", "expiring", "due", "paid"):
+        for f in ("active", "expiring", "expired", "due", "paid"):
             assert not member_matches_filter(None, f, None, today=TODAY), f
 
 
@@ -70,6 +70,28 @@ class TestExpiringFilter:
         """No end_date to run out — session-based plans can't be date-expiring."""
         sub = _sub(end_date=None, sessions_remaining=3)
         assert not member_matches_filter(sub, "expiring", today=TODAY)
+
+
+class TestExpiredFilter:
+    def test_expired_status_matches(self):
+        assert member_matches_filter(_sub(status="EXPIRED"), "expired", today=TODAY)
+
+    def test_non_expired_statuses_do_not_match(self):
+        for status in ("ACTIVE", "FROZEN", "CANCELLED"):
+            assert not member_matches_filter(_sub(status=status), "expired", today=TODAY), status
+
+    def test_expired_and_expiring_are_mutually_exclusive(self):
+        """A lapsed subscription belongs in exactly one of these two
+        buckets, never both — "expiring" is the proactive follow-up list,
+        "expired" is the already-lapsed one."""
+        lapsed = _sub(status="EXPIRED", end_date=TODAY - timedelta(days=3))
+        assert member_matches_filter(lapsed, "expired", today=TODAY)
+        assert not member_matches_filter(lapsed, "expiring", today=TODAY)
+
+    def test_combines_with_plan_id(self):
+        sub = _sub(status="EXPIRED", plan_id="plan-a")
+        assert member_matches_filter(sub, "expired", "plan-a", today=TODAY)
+        assert not member_matches_filter(sub, "expired", "plan-b", today=TODAY)
 
 
 class TestDueAndPaidFilters:
@@ -284,6 +306,16 @@ class TestListMembersFilterPath:
         result = members_module.list_members(subscription_filter="active", staff={"tenant_id": TENANT})
         assert result["items"] == []
         assert client.tables["subscription"][0]["status"] == "EXPIRED"
+
+    def test_expired_filter_end_to_end(self, monkeypatch):
+        """A row still marked ACTIVE but past its end_date DOES show up
+        under "Expired" — the mirror image of the lazy-expiry test above."""
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(client, [("Stale active", "ACTIVE", -5, 0, "plan-a"), ("Still active", "ACTIVE", 10, 0, "plan-a")])
+        result = members_module.list_members(subscription_filter="expired", staff={"tenant_id": TENANT})
+        assert self._names(result) == {"Stale active"}
 
     def test_search_and_filter_combine(self, monkeypatch):
         """The text search runs against the whole dataset inside the filtered

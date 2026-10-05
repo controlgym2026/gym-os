@@ -442,6 +442,7 @@ export default function MembersPage() {
             <option value="">All members</option>
             <option value="active">Active</option>
             <option value="expiring">Expiring (next 7 days)</option>
+            <option value="expired">Expired</option>
             <option value="due">Due</option>
             <option value="paid">Paid</option>
           </select>
