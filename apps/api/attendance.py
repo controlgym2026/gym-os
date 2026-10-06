@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from auth import get_admin_client, get_current_staff
 from resources import get_member_or_404
-from subscriptions import expire_if_due, get_latest_subscription
+from subscriptions import get_latest_subscription, reconcile_subscription_status
 
 router = APIRouter(tags=["attendance"])
 
@@ -29,7 +29,7 @@ class CheckInRequest(BaseModel):
 
 def check_in_allowed(sub: dict | None) -> tuple[bool, str]:
     """Pure decision for POST /attendance/check-in. `sub` is the member's
-    most recent subscription (already run through expire_if_due), or None if
+    most recent subscription (already run through reconcile_subscription_status), or None if
     they've never had one. Covers all 5 cases: active / frozen / expired /
     cancelled / no-subscription."""
     if sub is None:
@@ -73,7 +73,7 @@ def perform_check_in(
     """
     sub = get_latest_subscription(client, tenant_id, member_id)
     if sub is not None:
-        sub = expire_if_due(client, sub)
+        sub = reconcile_subscription_status(client, sub)
 
     allowed, reason = check_in_allowed(sub)
     if not allowed:

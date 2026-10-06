@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from auth import get_admin_client, get_current_staff
 from resources import get_member_or_404
-from subscriptions import expire_if_due
+from subscriptions import reconcile_subscription_status
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -160,7 +160,7 @@ def _latest_subscriptions_by_member(
     latest_by_member: dict[str, dict] = {}
     for s in subs:
         latest_by_member.setdefault(s["member_id"], s)  # first seen per member = most recent (query is desc)
-    return {mid: expire_if_due(client, s) for mid, s in latest_by_member.items()}
+    return {mid: reconcile_subscription_status(client, s) for mid, s in latest_by_member.items()}
 
 
 def _attach_current_subscriptions(

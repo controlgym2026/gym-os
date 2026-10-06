@@ -3,7 +3,8 @@
 Status transitions (enforced by ALLOWED_TRANSITIONS below):
   ACTIVE  -> FROZEN     manual hold, pauses the end_date countdown
   FROZEN  -> ACTIVE     resume; shifts end_date forward by the frozen duration
-  ACTIVE  -> EXPIRED    automatic — see is_expired()/expire_if_due() below
+  ACTIVE  <-> EXPIRED   automatic, both directions — see is_expired()/
+                        reconcile_subscription_status() below
   ACTIVE, FROZEN -> CANCELLED   manual, terminal
 
 `frozen_at` isn't in the original Phase 1 column spec, but resuming needs to
@@ -11,8 +12,18 @@ know how long a subscription sat frozen in order to shift end_date forward —
 there's no way to compute that without recording when the freeze started, so
 it was added in the migration.
 
-"Automatic" EXPIRED is implemented as lazy expiry-on-read/use (expire_if_due),
-not a background job — nothing in this phase runs on a schedule.
+"Automatic" EXPIRED is implemented as lazy reconciliation-on-read/use
+(reconcile_subscription_status), not a background job — nothing in this
+phase runs on a schedule. It's bidirectional: ACTIVE flips to EXPIRED once
+end_date/sessions_remaining says so, but the reverse also happens — if
+end_date gets corrected or extended into the future (e.g. "Edit Membership"
+updating dates on the existing row directly, instead of the normal renewal
+flow that starts a fresh row), an EXPIRED row flips back to ACTIVE on the
+next read. EXPIRED is a derived, date-driven status, not a deliberate staff
+choice the way CANCELLED is — so unlike CANCELLED, dates alone are allowed
+to undo it. Found as a real bug: a membership extended via direct date edit
+kept showing "Expired" even though its end_date was already back in the
+future, because nothing re-checked status against the corrected date.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -75,13 +86,23 @@ def is_expired(sub: dict, *, today: date | None = None) -> bool:
 # --- DB-touching helpers -----------------------------------------------------
 
 
-def expire_if_due(client, sub: dict) -> dict:
-    """Flip an ACTIVE subscription to EXPIRED if is_expired() says it should
-    be. Returns the (possibly updated) row."""
-    if sub["status"] != "ACTIVE" or not is_expired(sub):
-        return sub
-    result = client.table("subscription").update({"status": "EXPIRED"}).eq("id", sub["id"]).execute()
-    return result.data[0]
+def reconcile_subscription_status(client, sub: dict) -> dict:
+    """Keep `status` in sync with what end_date/sessions_remaining actually
+    say, in both directions:
+      - ACTIVE but is_expired() -> EXPIRED (the original lazy-expiry
+        behavior: nothing flips this automatically except reading it).
+      - EXPIRED but NOT is_expired() -> back to ACTIVE. The other half of
+        the same idea — see this module's docstring for the bug this
+        fixes. CANCELLED is never touched here; that's a deliberate
+        terminal choice, not something a date alone should undo.
+    Returns the (possibly updated) row."""
+    if sub["status"] == "ACTIVE" and is_expired(sub):
+        result = client.table("subscription").update({"status": "EXPIRED"}).eq("id", sub["id"]).execute()
+        return result.data[0]
+    if sub["status"] == "EXPIRED" and not is_expired(sub):
+        result = client.table("subscription").update({"status": "ACTIVE"}).eq("id", sub["id"]).execute()
+        return result.data[0]
+    return sub
 
 
 def get_active_subscription(client, tenant_id: str, member_id: str) -> dict | None:
@@ -99,7 +120,7 @@ def get_active_subscription(client, tenant_id: str, member_id: str) -> dict | No
     rows = result.data or []
     if not rows:
         return None
-    sub = expire_if_due(client, rows[0])
+    sub = reconcile_subscription_status(client, rows[0])
     return sub if sub["status"] == "ACTIVE" else None
 
 
@@ -235,7 +256,7 @@ def list_member_subscriptions(member_id: str, staff=Depends(get_current_staff)):
         .order("created_at", desc=True)
         .execute()
     )
-    return [expire_if_due(client, s) for s in result.data]
+    return [reconcile_subscription_status(client, s) for s in result.data]
 
 
 @router.patch("/subscriptions/{subscription_id}")
@@ -247,7 +268,7 @@ def update_subscription(subscription_id: str, body: SubscriptionUpdate, staff=De
     update: dict = {}
 
     if body.status is not None:
-        sub = expire_if_due(client, sub)
+        sub = reconcile_subscription_status(client, sub)
         new_status = body.status.upper()
         if new_status not in ALLOWED_TRANSITIONS:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown status '{body.status}'")

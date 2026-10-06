@@ -331,7 +331,8 @@ class TestListMembersFilterPath:
 
     def test_lazy_expiry_applies_to_the_filter(self, monkeypatch):
         """A row still marked ACTIVE but past its end_date must not show up
-        under "Active" — expire_if_due runs before the predicate."""
+        under "Active" — reconcile_subscription_status runs before the
+        predicate."""
         import members as members_module
 
         client = self._setup(monkeypatch)
@@ -339,6 +340,20 @@ class TestListMembersFilterPath:
         result = members_module.list_members(subscription_filter="active", staff={"tenant_id": TENANT})
         assert result["items"] == []
         assert client.tables["subscription"][0]["status"] == "EXPIRED"
+
+    def test_lazy_reconciliation_also_revives_a_stale_expired_row(self, monkeypatch):
+        """The bug this was written to fix: a subscription marked EXPIRED in
+        the DB, whose end_date has since been corrected/extended into the
+        future (e.g. via a direct "Edit Membership" date edit that never
+        touches status), must show up as Active again on the very next
+        read — not keep displaying a stale "Expired" next to a future date."""
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(client, [("Renewed member", "EXPIRED", 30, 0, "plan-a")])
+        result = members_module.list_members(subscription_filter="active", staff={"tenant_id": TENANT})
+        assert self._names(result) == {"Renewed member"}
+        assert client.tables["subscription"][0]["status"] == "ACTIVE"
 
     def test_expired_filter_end_to_end(self, monkeypatch):
         """A row still marked ACTIVE but past its end_date DOES show up
