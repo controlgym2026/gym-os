@@ -6,12 +6,18 @@ const TYPE_LABEL: Record<TransactionType, string> = {
   admission: "Admission",
   renewal: "Renewal",
   due_payment: "Due Payment",
+  pt: "PT",
+  service: "Service",
+  product: "Product",
 };
 
 const TYPE_COLOR: Record<TransactionType, string> = {
   admission: "bg-yellow-400 text-black",
   renewal: "bg-black text-yellow-300",
   due_payment: "bg-amber-600 text-white",
+  pt: "bg-emerald-600 text-white",
+  service: "bg-blue-600 text-white",
+  product: "bg-purple-600 text-white",
 };
 
 function fmtMoney(n: number) {
@@ -94,10 +100,21 @@ export default function DashboardSummaryView({
         <StatCard icon="🏷️" label="Discount" value={summary.discount_total} />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <CategoryCard icon="🆕" label="Admissions" count={summary.admissions.count} amount={summary.admissions.amount} />
+      {/* Income-category cards — matches GymOps' own 6: Admission/
+          Renewals/Due Paid/PT/Service/Product. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <CategoryCard icon="🆕" label="Admission" count={summary.admissions.count} amount={summary.admissions.amount} />
         <CategoryCard icon="🔁" label="Renewals" count={summary.renewals.count} amount={summary.renewals.amount} />
         <CategoryCard icon="⏳" label="Due Paid" count={summary.due_paid.count} amount={summary.due_paid.amount} />
+        <CategoryCard icon="🏋️" label="PT" count={summary.pt.count} amount={summary.pt.amount} />
+        <CategoryCard icon="🧾" label="Service" count={summary.service.count} amount={summary.service.amount} />
+        <CategoryCard icon="🛍️" label="Product" count={summary.product.count} amount={summary.product.amount} />
+      </div>
+
+      {/* Payment-mode split — a separate row from the categories above,
+          same as GymOps' own layout (Online/Cash sum to the same income
+          total the categories do, just sliced the other way). */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <CategoryCard icon="💳" label="Online" count={summary.online.count} amount={summary.online.amount} />
         <CategoryCard icon="💵" label="Cash" count={summary.cash.count} amount={summary.cash.amount} />
       </div>
@@ -125,7 +142,7 @@ export default function DashboardSummaryView({
                     </span>
                   </td>
                   <td className="p-2.5 text-gray-500 whitespace-nowrap">{new Date(t.date).toLocaleDateString()}</td>
-                  <td className="p-2.5 text-gray-900">{t.plan_name}</td>
+                  <td className="p-2.5 text-gray-900">{t.plan_name ?? "—"}</td>
                   <td className="p-2.5 font-medium text-gray-900">{fmtMoney(t.amount)}</td>
                   <td className="p-2.5">
                     {t.member_id ? (

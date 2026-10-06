@@ -13,6 +13,9 @@ const TYPE_LABEL: Record<TransactionType, string> = {
   admission: "Admission",
   renewal: "Renewal",
   due_payment: "Due Payment",
+  pt: "PT",
+  service: "Service",
+  product: "Product",
 };
 
 function shortId(id: string) {

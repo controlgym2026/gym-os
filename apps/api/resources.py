@@ -52,3 +52,17 @@ def get_subscription_or_404(client, tenant_id: str, subscription_id: str) -> dic
     if not rows:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Subscription not found")
     return rows[0]
+
+
+def get_expense_or_404(client, tenant_id: str, expense_id: str) -> dict:
+    result = (
+        client.table("expense")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .eq("id", expense_id)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Expense not found")
+    return rows[0]

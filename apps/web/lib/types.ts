@@ -1,20 +1,33 @@
 export type DashboardBucket = { count: number; amount: number };
 
-export type TransactionType = "admission" | "renewal" | "due_payment";
+export type PaymentMethod = "cash" | "card" | "upi" | "other";
+
+// admission/renewal/due_payment come from a subscription payment;
+// pt/service/product (Phase 6) are standalone sales, not tied to one.
+export type TransactionType = "admission" | "renewal" | "due_payment" | "pt" | "service" | "product";
 
 export type RecentTransaction = {
   id: string;
   transaction_type: TransactionType;
   date: string;
-  plan_name: string;
+  plan_name: string | null; // null for pt/service/product — no subscription to name
   amount: number;
+  discount_amount: number;
   member_id: string | null;
   member_name: string;
-  method: "cash" | "card" | "upi" | "other";
+  method: PaymentMethod;
+  gateway_ref: string | null; // manual reference, or the "note" on pt/service/product
 };
+
+// "today" | "this_week" | "last_week" | "this_month" | "last_month" |
+// "this_year" | "last_year" | "custom" — kept as plain string on the
+// frontend (matches how the API takes it) rather than re-declaring the
+// literal union in two places.
+export type FinancePeriod = string;
 
 export type DashboardSummary = {
   range: { from: string; to: string };
+  range_label: string; // e.g. "Oct 01, 2026 - Oct 31, 2026"
   profit: number;
   income: number;
   expense: number;
@@ -22,9 +35,38 @@ export type DashboardSummary = {
   admissions: DashboardBucket;
   renewals: DashboardBucket;
   due_paid: DashboardBucket;
+  pt: DashboardBucket;
+  service: DashboardBucket;
+  product: DashboardBucket;
   online: DashboardBucket;
   cash: DashboardBucket;
   recent_transactions: RecentTransaction[];
+};
+
+export type PaginatedIncome = {
+  items: RecentTransaction[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type Expense = {
+  id: string;
+  tenant_id: string;
+  category: string;
+  amount: number;
+  expense_date: string;
+  payment_mode: PaymentMethod;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type PaginatedExpenses = {
+  items: Expense[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type BillingStatus = "active" | "trial" | "suspended" | "cancelled";

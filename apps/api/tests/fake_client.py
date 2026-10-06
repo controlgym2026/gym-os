@@ -100,6 +100,11 @@ class _Query:
             for r in self._filtered:
                 r.update(self._payload)
             return _Result(list(self._filtered))
+        if self._mode == "delete":
+            deleted = list(self._filtered)
+            for r in deleted:
+                self._rows.remove(r)
+            return _Result(deleted)
         raise NotImplementedError(self._mode)
 
 
@@ -115,6 +120,9 @@ class _Table:
 
     def update(self, payload: dict):
         return _Query(self._rows, "update", payload)
+
+    def delete(self):
+        return _Query(self._rows, "delete")
 
 
 class FakeClient:
