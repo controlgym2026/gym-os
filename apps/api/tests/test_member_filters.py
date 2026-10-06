@@ -5,7 +5,7 @@ renewal-followup list (session-based plans, boundary days)."""
 
 from datetime import date, timedelta
 
-from members import EXPIRING_SOON_DAYS, member_matches_filter
+from members import EXPIRING_SOON_DAYS, member_matches_filter, sort_members_for_filter
 
 TODAY = date(2026, 10, 2)
 TENANT = "tenant-1"
@@ -361,3 +361,75 @@ class TestListMembersFilterPath:
         for f in ("active", "due", None):
             result = members_module.list_members(subscription_filter=f, staff={"tenant_id": TENANT})
             assert "Someone Else" not in self._names(result), f
+
+
+class TestSortMembersForFilter:
+    def _member(self, mid, name):
+        return {"id": mid, "name": name}
+
+    def _subs(self, pairs):
+        """pairs: list of (member_id, end_date | None)."""
+        return {mid: {"end_date": end} for mid, end in pairs}
+
+    def test_expired_sorts_most_recently_lapsed_first(self):
+        members = [self._member("m1", "A"), self._member("m2", "B"), self._member("m3", "C")]
+        latest = self._subs([("m1", "2026-01-01"), ("m2", "2026-09-01"), ("m3", "2026-05-01")])
+        ordered = sort_members_for_filter(members, latest, "expired")
+        assert [m["name"] for m in ordered] == ["B", "C", "A"]
+
+    def test_non_expired_filters_keep_the_original_order(self):
+        members = [self._member("m1", "A"), self._member("m2", "B")]
+        latest = self._subs([("m1", "2026-01-01"), ("m2", "2026-09-01")])
+        for f in (None, "active", "expiring", "due", "paid"):
+            ordered = sort_members_for_filter(members, latest, f)
+            assert [m["name"] for m in ordered] == ["A", "B"], f
+
+    def test_no_end_date_sorts_after_everyone_with_a_real_date(self):
+        """A session-based plan that expired by running out of sessions has
+        no end_date — it shouldn't be able to claim the "most recent" spot
+        just because None happens to compare oddly against a string."""
+        members = [self._member("m1", "NoDate"), self._member("m2", "HasDate")]
+        latest = self._subs([("m1", None), ("m2", "2026-01-01")])
+        ordered = sort_members_for_filter(members, latest, "expired")
+        assert [m["name"] for m in ordered] == ["HasDate", "NoDate"]
+
+    def test_member_missing_from_the_lookup_entirely_is_treated_like_no_date(self):
+        members = [self._member("m1", "Unknown"), self._member("m2", "HasDate")]
+        latest = self._subs([("m2", "2026-01-01")])  # m1 absent
+        ordered = sort_members_for_filter(members, latest, "expired")
+        assert [m["name"] for m in ordered] == ["HasDate", "Unknown"]
+
+
+class TestExpiredFilterSortEndToEnd:
+    def test_items_come_back_most_recently_expired_first(self, monkeypatch):
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(
+            client,
+            [
+                ("Expired long ago", "ACTIVE", -60, 0, "plan-a"),
+                ("Expired recently", "ACTIVE", -2, 0, "plan-a"),
+                ("Expired mid", "ACTIVE", -20, 0, "plan-a"),
+                ("Still active", "ACTIVE", 10, 0, "plan-a"),
+            ],
+        )
+        result = members_module.list_members(subscription_filter="expired", staff={"tenant_id": TENANT})
+        assert [m["name"] for m in result["items"]] == ["Expired recently", "Expired mid", "Expired long ago"]
+
+    def test_sort_applies_before_pagination_slicing(self, monkeypatch):
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(
+            client,
+            [(f"Expired {i}", "ACTIVE", -i, 0, "plan-a") for i in range(1, 11)],  # 1..10 days ago
+        )
+        page1 = members_module.list_members(
+            subscription_filter="expired", page=1, page_size=3, staff={"tenant_id": TENANT}
+        )
+        assert [m["name"] for m in page1["items"]] == ["Expired 1", "Expired 2", "Expired 3"]
+
+    # reuse TestListMembersFilterPath's fixtures
+    _setup = TestListMembersFilterPath._setup
+    _seed = TestListMembersFilterPath._seed

@@ -108,6 +108,29 @@ def member_matches_filter(
     return True
 
 
+def sort_members_for_filter(
+    members: list[dict], latest_by_member: dict[str, dict], filter_name: str | None
+) -> list[dict]:
+    """Pure: order `members` (already filtered) appropriately for
+    `filter_name`. Only "expired" has a special order so far — most
+    recently lapsed first, oldest lapses last, matching how someone chasing
+    renewals wants to work the list. A session-based plan that expired by
+    running out of sessions has no end_date to sort by; those sort after
+    everyone with a real expiry date, in whatever order they arrived in
+    (the base query's created_at desc). Every other filter keeps that same
+    base order unchanged."""
+    if filter_name != "expired":
+        return members
+
+    def end_date(m: dict) -> str | None:
+        return (latest_by_member.get(m["id"]) or {}).get("end_date")
+
+    with_date = [m for m in members if end_date(m)]
+    without_date = [m for m in members if not end_date(m)]
+    with_date.sort(key=end_date, reverse=True)
+    return with_date + without_date
+
+
 def _latest_subscriptions_by_member(
     client, tenant_id: str, member_ids: list[str] | None = None
 ) -> dict[str, dict]:
@@ -224,6 +247,7 @@ def list_members(
             for m in members
             if member_matches_filter(latest_by_member.get(m["id"]), subscription_filter, plan_id)
         ]
+        matched = sort_members_for_filter(matched, latest_by_member, subscription_filter)
         return {
             "items": _attach_current_subscriptions(
                 client, tenant_id, matched[offset : offset + page_size], latest_by_member
