@@ -1,0 +1,15 @@
+{
+  "name": "Gym Control",
+  "short_name": "Gym Control",
+  "description": "Gym Control — gym management software. A product of Livnexa Care Pvt Ltd.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -13,6 +13,16 @@ export default function Document() {
         <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#000000" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+        {/* Installable on a phone ("Add to Home Screen") as a standalone,
+            app-like window — see public/manifest.json. */}
+        <link rel="manifest" href="/manifest.json" />
+        {/* iOS Safari ignores manifest.json for most of this and needs its
+            own meta tags instead; apple-touch-icon above is shared with both. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="apple-mobile-web-app-title" content="Gym Control" />
       </Head>
       <body className="antialiased">
         <Main />
