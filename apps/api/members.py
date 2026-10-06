@@ -62,9 +62,12 @@ def create_member(body: MemberCreate, staff=Depends(get_current_staff)):
 
 EXPIRING_SOON_DAYS = 7
 
-# Values accepted by GET /members?filter= — all are predicates on the
-# member's *current subscription*, not on the member row itself.
-MEMBER_FILTERS = ("active", "expiring", "expired", "due", "paid")
+# Values accepted by GET /members?filter= — most are predicates on the
+# member's *current subscription*; has_photo/no_photo are the exception,
+# predicates on the member row itself (photo_url), so they work regardless
+# of subscription status — a member with no plan at all can still have (or
+# be missing) a photo.
+MEMBER_FILTERS = ("active", "expiring", "expired", "due", "paid", "has_photo", "no_photo")
 
 
 def member_matches_filter(
@@ -72,16 +75,22 @@ def member_matches_filter(
     filter_name: str | None,
     plan_id: str | None = None,
     *,
+    photo_url: str | None = None,
     today: date | None = None,
 ) -> bool:
-    """Pure: does a member whose current subscription is `sub` belong in the
-    filtered list? `plan_id` and `filter_name` are independent and both are
-    optional — passing both means "this filter AND this plan". A member with
-    no subscription at all matches only the unfiltered case."""
+    """Pure: does a member whose current subscription is `sub` (and whose
+    photo path is `photo_url`) belong in the filtered list? `plan_id` and
+    `filter_name` are independent and both are optional — passing both
+    means "this filter AND this plan". A member with no subscription at all
+    matches only the unfiltered case, or has_photo/no_photo (see above)."""
     if plan_id and (sub is None or sub.get("plan_id") != plan_id):
         return False
     if not filter_name:
         return True
+    if filter_name == "has_photo":
+        return bool(photo_url)
+    if filter_name == "no_photo":
+        return not photo_url
     if sub is None:
         return False
 
@@ -245,7 +254,9 @@ def list_members(
         matched = [
             m
             for m in members
-            if member_matches_filter(latest_by_member.get(m["id"]), subscription_filter, plan_id)
+            if member_matches_filter(
+                latest_by_member.get(m["id"]), subscription_filter, plan_id, photo_url=m.get("photo_url")
+            )
         ]
         matched = sort_members_for_filter(matched, latest_by_member, subscription_filter)
         return {

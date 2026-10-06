@@ -139,6 +139,39 @@ class TestPlanFilter:
         assert not member_matches_filter(on_plan_b_active, "active", "plan-a", today=TODAY)
 
 
+class TestHasPhotoAndNoPhotoFilters:
+    def test_has_photo_matches_a_member_with_a_photo(self):
+        assert member_matches_filter(_sub(), "has_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+
+    def test_has_photo_excludes_a_member_without_one(self):
+        assert not member_matches_filter(_sub(), "has_photo", photo_url=None, today=TODAY)
+
+    def test_no_photo_matches_a_member_without_one(self):
+        assert member_matches_filter(_sub(), "no_photo", photo_url=None, today=TODAY)
+
+    def test_no_photo_excludes_a_member_with_one(self):
+        assert not member_matches_filter(_sub(), "no_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+
+    def test_has_and_no_photo_are_exhaustive_and_mutually_exclusive(self):
+        for photo in (None, "", "t1/members/m1/photo.jpg"):
+            has = member_matches_filter(_sub(), "has_photo", photo_url=photo, today=TODAY)
+            no = member_matches_filter(_sub(), "no_photo", photo_url=photo, today=TODAY)
+            assert has != no, photo
+
+    def test_unlike_every_other_filter_photo_filters_work_with_no_subscription_at_all(self):
+        """A member who's never had a plan can still have (or be missing) a
+        photo — these two filters are the one exception to "no subscription
+        -> matches nothing"."""
+        assert member_matches_filter(None, "no_photo", photo_url=None, today=TODAY)
+        assert not member_matches_filter(None, "has_photo", photo_url=None, today=TODAY)
+        assert member_matches_filter(None, "has_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+
+    def test_combines_with_plan_id(self):
+        sub = _sub(plan_id="plan-a")
+        assert member_matches_filter(sub, "no_photo", "plan-a", photo_url=None, today=TODAY)
+        assert not member_matches_filter(sub, "no_photo", "plan-b", photo_url=None, today=TODAY)
+
+
 class TestListMembersFilterPath:
     """GET /members?filter= end-to-end against FakeClient: the filtered path
     pages in Python (status/due/plan live on the subscription, not the member
@@ -316,6 +349,21 @@ class TestListMembersFilterPath:
         self._seed(client, [("Stale active", "ACTIVE", -5, 0, "plan-a"), ("Still active", "ACTIVE", 10, 0, "plan-a")])
         result = members_module.list_members(subscription_filter="expired", staff={"tenant_id": TENANT})
         assert self._names(result) == {"Stale active"}
+
+    def test_has_photo_and_no_photo_filters_end_to_end(self, monkeypatch):
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(client, self.SPECS)
+        # _seed's rows never set photo_url at all — give two of them one.
+        client.tables["member"][0]["photo_url"] = "t1/members/m-0/photo.jpg"
+        client.tables["member"][1]["photo_url"] = "t1/members/m-1/photo.jpg"
+
+        with_photo = members_module.list_members(subscription_filter="has_photo", staff={"tenant_id": TENANT})
+        assert with_photo["total"] == 2
+
+        without_photo = members_module.list_members(subscription_filter="no_photo", staff={"tenant_id": TENANT})
+        assert without_photo["total"] == len(self.SPECS) - 2
 
     def test_search_and_filter_combine(self, monkeypatch):
         """The text search runs against the whole dataset inside the filtered

@@ -445,6 +445,8 @@ export default function MembersPage() {
             <option value="expired">Expired</option>
             <option value="due">Due</option>
             <option value="paid">Paid</option>
+            <option value="has_photo">Has photo</option>
+            <option value="no_photo">No photo</option>
           </select>
 
           <select
