@@ -137,6 +137,11 @@ export default function MembersPage() {
     if (session) loadMembers(session.access_token, q, 1); // new search always starts at page 1
   }
 
+  function clearSearch() {
+    setQ("");
+    if (session) loadMembers(session.access_token, "", 1);
+  }
+
   function goToPage(pageNum: number) {
     if (session) loadMembers(session.access_token, q, pageNum);
   }
@@ -442,12 +447,25 @@ export default function MembersPage() {
 
         <div className="flex gap-2 flex-wrap items-center">
           <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[16rem]">
-            <input
-              className="border rounded px-3 py-2 flex-1"
-              placeholder="Search by name or phone"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
+            <div className="relative flex-1">
+              <input
+                className="border rounded px-3 py-2 w-full pr-8"
+                placeholder="Search by name or phone"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  title="Clear search"
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             <button type="submit" className="rounded border px-3 py-2 text-sm">
               Search
             </button>
@@ -483,15 +501,21 @@ export default function MembersPage() {
             ))}
           </select>
 
-          {(statusFilter || planFilter) && (
+          {(statusFilter || planFilter || q) && (
             <button
               onClick={() => {
                 setStatusFilter("");
                 setPlanFilter("");
+                setQ("");
+                // Explicit args, not state defaults — statusFilter/planFilter/q
+                // above haven't actually updated yet at this point in the
+                // handler (setState is async), so loadMembers's own default
+                // params would still read the stale pre-clear values.
+                if (session) loadMembers(session.access_token, "", 1, "", "");
               }}
               className="rounded border px-3 py-2 text-sm"
             >
-              Clear
+              Clear all · show everyone
             </button>
           )}
         </div>
@@ -502,6 +526,7 @@ export default function MembersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left">
+                <th className="p-3 font-medium text-gray-600">ID</th>
                 <th className="p-3 font-medium text-gray-600">Member</th>
                 <th className="p-3 font-medium text-gray-600">Phone Number</th>
                 <th className="p-3 font-medium text-gray-600">Days Left</th>
@@ -516,6 +541,7 @@ export default function MembersPage() {
                 const sub = m.current_subscription;
                 return (
                   <tr key={m.id} className="border-t border-gray-100">
+                    <td className="p-3 text-gray-500 font-medium">{m.member_number}</td>
                     <td className="p-3">
                       <button
                         onClick={() => setSelectedMemberId(m.id)}
@@ -588,7 +614,7 @@ export default function MembersPage() {
               })}
               {members.length === 0 && !listError && (
                 <tr>
-                  <td colSpan={7} className="p-4 text-center text-gray-400">
+                  <td colSpan={8} className="p-4 text-center text-gray-400">
                     {statusFilter || planFilter || q ? "No members match these filters." : "No members yet."}
                   </td>
                 </tr>

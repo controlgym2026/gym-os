@@ -18,10 +18,6 @@ const TYPE_LABEL: Record<TransactionType, string> = {
   product: "Product",
 };
 
-function shortId(id: string) {
-  return id.slice(0, 8).toUpperCase();
-}
-
 function digitsOnly(phone: string) {
   return phone.replace(/\D/g, "");
 }
@@ -130,7 +126,7 @@ export default function MemberDetailsModal({
         <MemberPhoto path={member.photo_url} name={member.name} size={56} />
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-gray-900">{member.name}</h2>
-          <p className="text-xs text-gray-500">#{shortId(member.id)}</p>
+          <p className="text-xs text-gray-500">Member #{member.member_number}</p>
         </div>
         {member.phone && (
           <div className="flex gap-2">

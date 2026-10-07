@@ -318,7 +318,9 @@ export default function MemberProfilePage() {
             </span>
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{member.name}</h1>
+            <h1 className="text-xl font-semibold">
+              {member.name} <span className="text-sm font-normal opacity-50">#{member.member_number}</span>
+            </h1>
             <p className="text-sm opacity-70">{member.phone || "—"} · {member.email || "—"}</p>
           </div>
           <button onClick={handleOpenEditMember} className="rounded border px-3 py-1.5 text-sm">

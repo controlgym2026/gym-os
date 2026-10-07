@@ -142,6 +142,9 @@ export type Member = {
   id: string;
   tenant_id: string;
   branch_id: string | null;
+  // Permanent, human-readable, per-gym sequential ID — distinct from `id`
+  // (the UUID). Assigned once, server-side only; never client-supplied.
+  member_number: number;
   name: string;
   phone: string | null;
   email: string | null;
