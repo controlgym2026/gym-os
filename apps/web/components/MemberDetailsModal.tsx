@@ -379,7 +379,10 @@ function EarlyRenewForm({
       }
 
       const paid = Number(amountPaid) || 0;
-      const dueAmount = Math.max(0, selectedPlan.price - paid);
+      // Was missing the discount entirely — overcharged by exactly the
+      // discount amount whenever one was given (recorded on the payment
+      // for reporting, but never actually subtracted from what's owed).
+      const dueAmount = Math.max(0, selectedPlan.price - (Number(discount) || 0) - paid);
 
       const newSub = await apiFetch<Subscription>(`/members/${memberId}/subscriptions`, {
         method: "POST",
@@ -483,6 +486,24 @@ function EarlyRenewForm({
           <option value="other">Other</option>
         </select>
       </label>
+
+      {selectedPlan && (
+        <div className="flex gap-3">
+          <div className="flex-1 rounded-lg border-2 border-yellow-400 bg-yellow-50 px-3 py-2">
+            <span className="block text-xs text-gray-600">Final price</span>
+            <span className="text-lg font-bold text-gray-900">
+              ₹{Math.max(0, selectedPlan.price - (Number(discount) || 0))}
+            </span>
+          </div>
+          <div className="flex-1 rounded-lg border px-3 py-2">
+            <span className="block text-xs text-gray-600">Due amount</span>
+            <span className="text-lg font-bold text-amber-600">
+              ₹{Math.max(0, selectedPlan.price - (Number(discount) || 0) - (Number(amountPaid) || 0))}
+            </span>
+          </div>
+        </div>
+      )}
+
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <button
         type="submit"

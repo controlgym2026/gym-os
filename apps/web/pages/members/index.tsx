@@ -396,6 +396,27 @@ export default function MembersPage() {
                     </select>
                   </label>
                 </div>
+
+                {/* Final price = plan price minus discount, highlighted so
+                    it's never just buried in a sentence — this is the
+                    number staff actually care about once a discount is
+                    involved. Due amount (what's still owed after what's
+                    paid now) sits right next to it for the same reason. */}
+                <div className="flex flex-wrap gap-3">
+                  <div className="rounded-lg border-2 border-yellow-400 bg-yellow-50 px-4 py-2">
+                    <span className="block text-xs text-gray-600">Final price</span>
+                    <span className="text-xl font-bold text-gray-900">
+                      ₹{Math.max(0, selectedPlan.price - (Number(discount) || 0))}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border px-4 py-2">
+                    <span className="block text-xs text-gray-600">Due amount</span>
+                    <span className="text-xl font-bold text-amber-600">
+                      ₹{Math.max(0, selectedPlan.price - (Number(discount) || 0) - (Number(amountPaid) || 0))}
+                    </span>
+                  </div>
+                </div>
+
                 <p className="text-xs opacity-70">
                   {selectedPlan.session_limit
                     ? `${selectedPlan.session_limit} sessions, no expiry date`
@@ -403,8 +424,7 @@ export default function MembersPage() {
                         new Date(startDate).getTime() + selectedPlan.duration_days * 86_400_000,
                       ).toLocaleDateString()}`}{" "}
                   (set automatically from the plan and start date — correct it afterwards from the member&rsquo;s
-                  page if needed). Due amount: ₹
-                  {Math.max(0, selectedPlan.price - (Number(discount) || 0) - (Number(amountPaid) || 0))}
+                  page if needed).
                 </p>
               </>
             )}
