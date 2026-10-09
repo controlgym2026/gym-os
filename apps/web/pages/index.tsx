@@ -72,16 +72,6 @@ export default function Home() {
     loadSummary(session.access_token);
   }, [session, me]);
 
-  // Dashboard is owner-only (see NavBar.tsx's Owner section) — a non-owner
-  // staff member landing here directly gets sent to Members instead. UI
-  // convenience only: GET /dashboard/summary independently 403s anyone who
-  // isn't the owner (see require_owner in auth.py).
-  useEffect(() => {
-    if (me?.staff && me.staff.role !== "owner") {
-      router.replace("/members");
-    }
-  }, [me, router]);
-
   async function handleBootstrap(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
@@ -158,10 +148,6 @@ export default function Home() {
         </form>
       </main>
     );
-  }
-
-  if (me.staff.role !== "owner") {
-    return null; // redirecting to /members in flight
   }
 
   return (

@@ -13,7 +13,7 @@ from payments import IncomeCreate, PaymentCreate, create_income, create_payment,
 from tests.fake_client import FakeClient
 
 TENANT = "tenant-1"
-STAFF = {"tenant_id": TENANT, "id": "staff-1", "role": "owner"}  # create_income is owner-only, see TestCreateIncomeIsOwnerOnly
+STAFF = {"tenant_id": TENANT, "id": "staff-1"}
 
 
 def _seed_member(client, member_id="m-1"):
@@ -239,47 +239,3 @@ class TestMemberTransactions:
 
         result = member_transactions("m-1", staff=STAFF)
         assert [p["id"] for p in result] == ["mine"]
-
-
-class TestCreateIncomeIsOwnerOnlyButPaymentsAreNot:
-    """create_income (standalone pt/service/product sales, part of
-    Finance) is owner-only. create_payment (subscription admission/
-    renewal/due_payment) and member_transactions are NOT — every staff
-    role still needs those for day-to-day renewals and due collection at
-    the front desk. This is the one deliberate split within payments.py."""
-
-    NON_OWNER = {"tenant_id": TENANT, "id": "staff-2", "role": "front_desk"}
-
-    def test_create_income_rejects_non_owner(self, monkeypatch):
-        import payments as payments_module
-
-        client = FakeClient()
-        monkeypatch.setattr(payments_module, "get_admin_client", lambda: client)
-        with pytest.raises(HTTPException) as exc:
-            create_income(IncomeCreate(category="pt", amount=500, method="cash"), staff=self.NON_OWNER)
-        assert exc.value.status_code == 403
-
-    def test_create_payment_still_works_for_non_owner(self, monkeypatch):
-        import payments as payments_module
-
-        client = FakeClient()
-        monkeypatch.setattr(payments_module, "get_admin_client", lambda: client)
-        _seed_member(client)
-        client.seed(
-            "subscription",
-            [{"id": "s-1", "tenant_id": TENANT, "member_id": "m-1", "plan_id": "plan-1",
-              "due_amount": 500, "created_at": "2026-01-01"}],
-        )
-        result = create_payment(
-            "s-1", PaymentCreate(amount=200, method="cash"), staff=self.NON_OWNER
-        )
-        assert result["amount"] == 200
-
-    def test_member_transactions_still_works_for_non_owner(self, monkeypatch):
-        import payments as payments_module
-
-        client = FakeClient()
-        monkeypatch.setattr(payments_module, "get_admin_client", lambda: client)
-        _seed_member(client)
-        result = member_transactions("m-1", staff=self.NON_OWNER)
-        assert result == []

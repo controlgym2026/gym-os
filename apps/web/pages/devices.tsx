@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Layout from "@/components/Layout";
-import { useAuth, useRequireOwner } from "@/lib/useAuth";
+import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type { Device } from "@/lib/types";
 
@@ -9,8 +9,7 @@ function fmtLastSeen(s: string | null) {
 }
 
 export default function DevicesPage() {
-  const { session, loading, role } = useAuth();
-  const authorized = useRequireOwner(role, loading);
+  const { session, loading } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [serialNumber, setSerialNumber] = useState("");
@@ -58,7 +57,7 @@ export default function DevicesPage() {
     await loadDevices(session.access_token);
   }
 
-  if (loading || !session || !authorized) {
+  if (loading || !session) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <p>Loading…</p>

@@ -125,52 +125,9 @@ class _Table:
         return _Query(self._rows, "delete")
 
 
-class _FakeAuthUser:
-    def __init__(self, id: str, email: str):
-        self.id = id
-        self.email = email
-
-
-class _FakeUserResponse:
-    def __init__(self, user: _FakeAuthUser):
-        self.user = user
-
-
-class _FakeAdminAuth:
-    """Minimal stand-in for client.auth.admin — just enough for staff.py's
-    create_staff/list_staff: create a user, look one up by id, delete one."""
-
-    def __init__(self):
-        self._emails_by_id: dict[str, str] = {}
-        self._next_id = 0
-
-    def create_user(self, attributes: dict) -> _FakeUserResponse:
-        email = attributes["email"]
-        if email in self._emails_by_id.values():
-            raise ValueError("A user with this email already exists")
-        self._next_id += 1
-        user_id = f"user-{self._next_id}"
-        self._emails_by_id[user_id] = email
-        return _FakeUserResponse(_FakeAuthUser(user_id, email))
-
-    def get_user_by_id(self, uid: str) -> _FakeUserResponse:
-        if uid not in self._emails_by_id:
-            raise ValueError("No such user")
-        return _FakeUserResponse(_FakeAuthUser(uid, self._emails_by_id[uid]))
-
-    def delete_user(self, uid: str, should_soft_delete: bool = False) -> None:
-        self._emails_by_id.pop(uid, None)
-
-
-class _FakeAuth:
-    def __init__(self):
-        self.admin = _FakeAdminAuth()
-
-
 class FakeClient:
     def __init__(self):
         self.tables: dict[str, list[dict]] = {}
-        self.auth = _FakeAuth()
 
     def table(self, name: str) -> _Table:
         return _Table(self.tables.setdefault(name, []))

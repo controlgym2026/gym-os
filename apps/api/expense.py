@@ -15,7 +15,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from auth import get_admin_client, get_current_staff, require_owner
+from auth import get_admin_client, get_current_staff
 from finance_period import InvalidPeriod, resolve_period, today_ist
 from payments import VALID_METHODS
 from resources import get_expense_or_404
@@ -61,13 +61,11 @@ def _validate_mode(mode: str) -> None:
 def list_category_presets(staff=Depends(get_current_staff)):
     """Suggested categories for the Add Expense form's datalist — not an
     enforced set, just a starting point."""
-    require_owner(staff)
     return list(CATEGORY_PRESETS)
 
 
 @router.post("", status_code=201)
 def create_expense(body: ExpenseCreate, staff=Depends(get_current_staff)):
-    require_owner(staff)
     client = get_admin_client()
     _validate_amount(body.amount)
     _validate_mode(body.payment_mode)
@@ -94,7 +92,6 @@ def list_expenses(
     page_size: int = DEFAULT_PAGE_SIZE,
     staff=Depends(get_current_staff),
 ):
-    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     page = max(1, page)
@@ -129,7 +126,6 @@ def list_expenses(
 
 @router.patch("/{expense_id}")
 def update_expense(expense_id: str, body: ExpenseUpdate, staff=Depends(get_current_staff)):
-    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     get_expense_or_404(client, tenant_id, expense_id)
@@ -152,7 +148,6 @@ def update_expense(expense_id: str, body: ExpenseUpdate, staff=Depends(get_curre
 
 @router.delete("/{expense_id}", status_code=204)
 def delete_expense(expense_id: str, staff=Depends(get_current_staff)):
-    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     get_expense_or_404(client, tenant_id, expense_id)

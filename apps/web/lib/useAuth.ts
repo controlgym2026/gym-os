@@ -13,11 +13,6 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  // 'owner' | 'manager' | 'trainer' | 'front_desk', or null before /auth/me
-  // resolves (or if the user hasn't bootstrapped a tenant yet). Only
-  // 'owner' sees Dashboard/Finance/Devices — see NavBar.tsx and each of
-  // those pages' own redirect guard.
-  const [role, setRole] = useState<string | null>(null);
   // getSession() resolves near-instantly (reads local storage), but
   // isSuperAdmin/tenantId only become accurate after the /auth/me round
   // trip below finishes — they start at their false/null defaults. A page
@@ -39,18 +34,16 @@ export function useAuth() {
       router.replace("/login");
       return;
     }
-    apiFetch<{ staff: { tenant_id: string; role: string } | null; is_super_admin: boolean }>("/auth/me", {
+    apiFetch<{ staff: { tenant_id: string } | null; is_super_admin: boolean }>("/auth/me", {
       token: session.access_token,
     })
       .then((me) => {
         setTenantId(me.staff?.tenant_id ?? null);
         setIsSuperAdmin(me.is_super_admin);
-        setRole(me.staff?.role ?? null);
       })
       .catch(() => {
         setTenantId(null);
         setIsSuperAdmin(false);
-        setRole(null);
       })
       .finally(() => setProfileLoaded(true));
   }, [session, router]);
@@ -60,25 +53,5 @@ export function useAuth() {
     loading: session === undefined || (session !== null && !profileLoaded),
     tenantId,
     isSuperAdmin,
-    role,
   };
-}
-
-/** Redirects away from an owner-only page (Dashboard/Finance/Devices/Staff)
- * once we know the viewer isn't the owner. Returns whether the page is
- * clear to render its real content — false while loading or while a
- * redirect is in flight, same shape as useAuth's own `loading`.
- *
- * UI convenience only, same relationship as isSuperAdmin has to /admin —
- * every owner-only API call independently re-checks role server-side (see
- * require_owner in auth.py), so a non-owner who somehow lands here briefly
- * still can't actually fetch anything restricted. */
-export function useRequireOwner(role: string | null, loading: boolean): boolean {
-  const router = useRouter();
-  useEffect(() => {
-    if (!loading && role !== "owner") {
-      router.replace("/members");
-    }
-  }, [loading, role, router]);
-  return !loading && role === "owner";
 }
