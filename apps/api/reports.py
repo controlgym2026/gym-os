@@ -20,7 +20,14 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 # vars rather than literals so recipients/tenant can be changed from
 # Render's dashboard without a code deploy, same pattern as
 # SUPER_ADMIN_EMAILS/FRONTEND_ORIGIN elsewhere in this codebase.
-_DEFAULT_RECIPIENTS = "singhankit639081@gmail.com,controlgym2026@gmail.com"
+#
+# NOTE: Resend's sandbox mode (no verified domain) only allows sending to
+# the Resend account's own signup address — currently just
+# controlgym2026@gmail.com. livnexacare@gmail.com will 403 until a domain
+# is verified in Resend and the sender address is switched to it (see
+# DAILY_REPORT_RECIPIENTS override, currently set on Render to just
+# controlgym2026@gmail.com for that reason).
+_DEFAULT_RECIPIENTS = "controlgym2026@gmail.com,livnexacare@gmail.com"
 _DEFAULT_TENANT_ID = "927a8361-3ec3-4b37-9c26-44b27044e0ab"  # Control Gym
 
 
