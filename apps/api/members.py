@@ -62,12 +62,17 @@ def create_member(body: MemberCreate, staff=Depends(get_current_staff)):
 
 EXPIRING_SOON_DAYS = 7
 
-# Values accepted by GET /members?filter= — most are predicates on the
-# member's *current subscription*; has_photo/no_photo are the exception,
-# predicates on the member row itself (photo_url), so they work regardless
-# of subscription status — a member with no plan at all can still have (or
-# be missing) a photo.
-MEMBER_FILTERS = ("active", "expiring", "expired", "due", "paid", "has_photo", "no_photo")
+# Values accepted by GET /members?filter= — predicates on the member's
+# *current subscription*. Independent of PHOTO_FILTERS below (different
+# query param, `photo`) so the two can be combined — e.g. "Expired" +
+# "Has photo" — instead of forcing a choice between them.
+STATUS_FILTERS = ("active", "expiring", "expired", "due", "paid")
+
+# Values accepted by GET /members?photo= — a predicate on the member row
+# itself (photo_url), not the subscription, so it works regardless of
+# subscription status: a member with no plan at all can still have (or be
+# missing) a photo.
+PHOTO_FILTERS = ("has_photo", "no_photo")
 
 
 def member_matches_filter(
@@ -76,21 +81,23 @@ def member_matches_filter(
     plan_id: str | None = None,
     *,
     photo_url: str | None = None,
+    photo_filter: str | None = None,
     today: date | None = None,
 ) -> bool:
     """Pure: does a member whose current subscription is `sub` (and whose
-    photo path is `photo_url`) belong in the filtered list? `plan_id` and
-    `filter_name` are independent and both are optional — passing both
-    means "this filter AND this plan". A member with no subscription at all
-    matches only the unfiltered case, or has_photo/no_photo (see above)."""
+    photo path is `photo_url`) belong in the filtered list? `filter_name`
+    (status), `plan_id`, and `photo_filter` are all independent and all
+    optional — passing more than one means AND, e.g. "expired" + "plan-a" +
+    "has_photo" all together. A member with no subscription at all matches
+    only the unfiltered case, or a photo_filter on its own (see above)."""
     if plan_id and (sub is None or sub.get("plan_id") != plan_id):
+        return False
+    if photo_filter == "has_photo" and not photo_url:
+        return False
+    if photo_filter == "no_photo" and photo_url:
         return False
     if not filter_name:
         return True
-    if filter_name == "has_photo":
-        return bool(photo_url)
-    if filter_name == "no_photo":
-        return not photo_url
     if sub is None:
         return False
 
@@ -227,6 +234,7 @@ def list_members(
     # Annotated (not `= Query(...)`) so the real Python default stays None and
     # the route is directly callable in tests, not just through HTTP.
     subscription_filter: Annotated[str | None, Query(alias="filter")] = None,
+    photo_filter: Annotated[str | None, Query(alias="photo")] = None,
     plan_id: str | None = None,
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
@@ -238,13 +246,18 @@ def list_members(
     page_size = min(max(1, page_size), MAX_PAGE_SIZE)
     offset = (page - 1) * page_size
 
-    if subscription_filter and subscription_filter not in MEMBER_FILTERS:
+    if subscription_filter and subscription_filter not in STATUS_FILTERS:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Unknown filter '{subscription_filter}' — expected one of {', '.join(MEMBER_FILTERS)}",
+            f"Unknown filter '{subscription_filter}' — expected one of {', '.join(STATUS_FILTERS)}",
+        )
+    if photo_filter and photo_filter not in PHOTO_FILTERS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unknown photo filter '{photo_filter}' — expected one of {', '.join(PHOTO_FILTERS)}",
         )
 
-    if subscription_filter or plan_id:
+    if subscription_filter or photo_filter or plan_id:
         # Status/due/plan live on the subscription, not the member row, so
         # PostgREST can't paginate this for us. Resolve every member's
         # current subscription (2 queries, not N) and page in Python. Bounded
@@ -255,7 +268,11 @@ def list_members(
             m
             for m in members
             if member_matches_filter(
-                latest_by_member.get(m["id"]), subscription_filter, plan_id, photo_url=m.get("photo_url")
+                latest_by_member.get(m["id"]),
+                subscription_filter,
+                plan_id,
+                photo_url=m.get("photo_url"),
+                photo_filter=photo_filter,
             )
         ]
         matched = sort_members_for_filter(matched, latest_by_member, subscription_filter)

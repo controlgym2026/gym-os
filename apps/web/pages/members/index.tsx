@@ -48,6 +48,9 @@ export default function MembersPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  // Independent of statusFilter — AND'ed together server-side, e.g.
+  // "Expired" + "Has photo" narrows to members matching both, not either.
+  const [photoFilter, setPhotoFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -89,11 +92,13 @@ export default function MembersPage() {
     setDownloadingDirectory(true);
     setDirectoryError(null);
     try {
-      // Respects whatever status filter is active (e.g. just Active
-      // members) — not the plan filter or search text, since those are
-      // about finding one person, not defining "who's in the directory".
+      // Respects whatever status/photo filters are active (e.g. just
+      // Active members with a photo) — not the plan filter or search text,
+      // since those are about finding one person, not defining "who's in
+      // the directory".
       const params = new URLSearchParams();
       if (statusFilter) params.set("filter", statusFilter);
+      if (photoFilter) params.set("photo", photoFilter);
       await downloadFile(`/reports/member-directory.pdf?${params}`, "member-directory.pdf", {
         token: session.access_token,
       });
@@ -111,12 +116,14 @@ export default function MembersPage() {
     status: string = statusFilter,
     plan: string = planFilter,
     size: number = pageSize,
+    photo: string = photoFilter,
   ) {
     try {
       const params = new URLSearchParams({ page: String(pageNum), page_size: String(size) });
       if (query) params.set("q", query);
       if (status) params.set("filter", status);
       if (plan) params.set("plan_id", plan);
+      if (photo) params.set("photo", photo);
       const result = await apiFetch<PaginatedMembers>(`/members?${params}`, { token });
       // Defensive: fail with a message instead of crashing the page if the
       // response is ever not the shape this page expects (e.g. a stale
@@ -141,7 +148,7 @@ export default function MembersPage() {
     // it's deliberately not a dependency here.
     if (session) loadMembers(session.access_token, q, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, statusFilter, planFilter, pageSize]);
+  }, [session, statusFilter, photoFilter, planFilter, pageSize]);
 
   useEffect(() => {
     if (!session) return;
@@ -508,12 +515,23 @@ export default function MembersPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             aria-label="Filter by status"
           >
-            <option value="">All members</option>
+            <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="expiring">Expiring (next 7 days)</option>
             <option value="expired">Expired</option>
             <option value="due">Due</option>
             <option value="paid">Paid</option>
+          </select>
+
+          {/* Independent of the status dropdown above — the two combine as
+              AND (e.g. "Expired" + "Has photo"), not a single either/or choice. */}
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={photoFilter}
+            onChange={(e) => setPhotoFilter(e.target.value)}
+            aria-label="Filter by photo"
+          >
+            <option value="">Any photo</option>
             <option value="has_photo">Has photo</option>
             <option value="no_photo">No photo</option>
           </select>
@@ -532,17 +550,18 @@ export default function MembersPage() {
             ))}
           </select>
 
-          {(statusFilter || planFilter || q) && (
+          {(statusFilter || photoFilter || planFilter || q) && (
             <button
               onClick={() => {
                 setStatusFilter("");
+                setPhotoFilter("");
                 setPlanFilter("");
                 setQ("");
-                // Explicit args, not state defaults — statusFilter/planFilter/q
-                // above haven't actually updated yet at this point in the
-                // handler (setState is async), so loadMembers's own default
-                // params would still read the stale pre-clear values.
-                if (session) loadMembers(session.access_token, "", 1, "", "");
+                // Explicit args, not state defaults — the setters above
+                // haven't actually updated yet at this point in the handler
+                // (setState is async), so loadMembers's own default params
+                // would still read the stale pre-clear values.
+                if (session) loadMembers(session.access_token, "", 1, "", "", pageSize, "");
               }}
               className="rounded border px-3 py-2 text-sm"
             >
@@ -646,7 +665,9 @@ export default function MembersPage() {
               {members.length === 0 && !listError && (
                 <tr>
                   <td colSpan={8} className="p-4 text-center text-gray-400">
-                    {statusFilter || planFilter || q ? "No members match these filters." : "No members yet."}
+                    {statusFilter || photoFilter || planFilter || q
+                      ? "No members match these filters."
+                      : "No members yet."}
                   </td>
                 </tr>
               )}

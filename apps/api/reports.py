@@ -12,7 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from auth import get_admin_client, get_current_staff
 from email_sender import EmailSendError, send_email_with_attachment
 from excel_report import build_members_excel
-from members import MEMBER_FILTERS, _attach_current_subscriptions, _filtered_members_query, member_matches_filter
+from members import (
+    PHOTO_FILTERS,
+    STATUS_FILTERS,
+    _attach_current_subscriptions,
+    _filtered_members_query,
+    member_matches_filter,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -92,6 +98,7 @@ def _download_member_photos(members: list[dict]) -> dict[str, bytes]:
 @router.get("/member-directory.pdf")
 def member_directory_pdf(
     filter: str | None = Query(default=None),  # noqa: A002 — matches GET /members's own param name
+    photo: str | None = Query(default=None),  # matches GET /members's own `photo` param — independent of `filter`, AND'ed
     plan_id: str | None = None,
     staff=Depends(get_current_staff),
 ):
@@ -100,12 +107,18 @@ def member_directory_pdf(
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
 
-    if filter and filter not in MEMBER_FILTERS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown filter '{filter}' — expected one of {MEMBER_FILTERS}")
+    if filter and filter not in STATUS_FILTERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown filter '{filter}' — expected one of {STATUS_FILTERS}")
+    if photo and photo not in PHOTO_FILTERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown photo filter '{photo}' — expected one of {PHOTO_FILTERS}")
 
     members = _fetch_all_members_with_subscriptions(client, tenant_id)
-    if filter or plan_id:
-        members = [m for m in members if member_matches_filter(m.get("current_subscription"), filter, plan_id, photo_url=m.get("photo_url"))]
+    if filter or photo or plan_id:
+        members = [
+            m
+            for m in members
+            if member_matches_filter(m.get("current_subscription"), filter, plan_id, photo_url=m.get("photo_url"), photo_filter=photo)
+        ]
     members.sort(key=lambda m: m["name"])
 
     photos = _download_member_photos(members)

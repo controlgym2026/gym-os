@@ -140,36 +140,57 @@ class TestPlanFilter:
 
 
 class TestHasPhotoAndNoPhotoFilters:
+    """photo_filter is an independent, optional axis (its own `photo=`
+    query param) from filter_name (status) — combinable as AND, e.g.
+    "expired" + "has_photo" together, not a choice between the two."""
+
     def test_has_photo_matches_a_member_with_a_photo(self):
-        assert member_matches_filter(_sub(), "has_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+        assert member_matches_filter(_sub(), None, photo_url="t1/members/m1/photo.jpg", photo_filter="has_photo", today=TODAY)
 
     def test_has_photo_excludes_a_member_without_one(self):
-        assert not member_matches_filter(_sub(), "has_photo", photo_url=None, today=TODAY)
+        assert not member_matches_filter(_sub(), None, photo_url=None, photo_filter="has_photo", today=TODAY)
 
     def test_no_photo_matches_a_member_without_one(self):
-        assert member_matches_filter(_sub(), "no_photo", photo_url=None, today=TODAY)
+        assert member_matches_filter(_sub(), None, photo_url=None, photo_filter="no_photo", today=TODAY)
 
     def test_no_photo_excludes_a_member_with_one(self):
-        assert not member_matches_filter(_sub(), "no_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+        assert not member_matches_filter(_sub(), None, photo_url="t1/members/m1/photo.jpg", photo_filter="no_photo", today=TODAY)
 
     def test_has_and_no_photo_are_exhaustive_and_mutually_exclusive(self):
         for photo in (None, "", "t1/members/m1/photo.jpg"):
-            has = member_matches_filter(_sub(), "has_photo", photo_url=photo, today=TODAY)
-            no = member_matches_filter(_sub(), "no_photo", photo_url=photo, today=TODAY)
+            has = member_matches_filter(_sub(), None, photo_url=photo, photo_filter="has_photo", today=TODAY)
+            no = member_matches_filter(_sub(), None, photo_url=photo, photo_filter="no_photo", today=TODAY)
             assert has != no, photo
 
     def test_unlike_every_other_filter_photo_filters_work_with_no_subscription_at_all(self):
         """A member who's never had a plan can still have (or be missing) a
         photo — these two filters are the one exception to "no subscription
         -> matches nothing"."""
-        assert member_matches_filter(None, "no_photo", photo_url=None, today=TODAY)
-        assert not member_matches_filter(None, "has_photo", photo_url=None, today=TODAY)
-        assert member_matches_filter(None, "has_photo", photo_url="t1/members/m1/photo.jpg", today=TODAY)
+        assert member_matches_filter(None, None, photo_url=None, photo_filter="no_photo", today=TODAY)
+        assert not member_matches_filter(None, None, photo_url=None, photo_filter="has_photo", today=TODAY)
+        assert member_matches_filter(None, None, photo_url="t1/members/m1/photo.jpg", photo_filter="has_photo", today=TODAY)
 
     def test_combines_with_plan_id(self):
         sub = _sub(plan_id="plan-a")
-        assert member_matches_filter(sub, "no_photo", "plan-a", photo_url=None, today=TODAY)
-        assert not member_matches_filter(sub, "no_photo", "plan-b", photo_url=None, today=TODAY)
+        assert member_matches_filter(sub, None, "plan-a", photo_url=None, photo_filter="no_photo", today=TODAY)
+        assert not member_matches_filter(sub, None, "plan-b", photo_url=None, photo_filter="no_photo", today=TODAY)
+
+    def test_combines_with_status_filter_as_and(self):
+        """The exact scenario this feature was built for: "Expired" AND
+        "Has photo" together narrows to members matching both, not either."""
+        expired_with_photo = _sub(status="EXPIRED")
+        expired_no_photo = _sub(status="EXPIRED")
+        active_with_photo = _sub(status="ACTIVE")
+
+        assert member_matches_filter(
+            expired_with_photo, "expired", photo_url="t1/m1/photo.jpg", photo_filter="has_photo", today=TODAY
+        )
+        assert not member_matches_filter(
+            expired_no_photo, "expired", photo_url=None, photo_filter="has_photo", today=TODAY
+        )
+        assert not member_matches_filter(
+            active_with_photo, "expired", photo_url="t1/m1/photo.jpg", photo_filter="has_photo", today=TODAY
+        )
 
 
 class TestListMembersFilterPath:
@@ -374,11 +395,36 @@ class TestListMembersFilterPath:
         client.tables["member"][0]["photo_url"] = "t1/members/m-0/photo.jpg"
         client.tables["member"][1]["photo_url"] = "t1/members/m-1/photo.jpg"
 
-        with_photo = members_module.list_members(subscription_filter="has_photo", staff={"tenant_id": TENANT})
+        with_photo = members_module.list_members(photo_filter="has_photo", staff={"tenant_id": TENANT})
         assert with_photo["total"] == 2
 
-        without_photo = members_module.list_members(subscription_filter="no_photo", staff={"tenant_id": TENANT})
+        without_photo = members_module.list_members(photo_filter="no_photo", staff={"tenant_id": TENANT})
         assert without_photo["total"] == len(self.SPECS) - 2
+
+    def test_status_and_photo_filters_combine_as_and_end_to_end(self, monkeypatch):
+        """The feature this was built for: GET /members?filter=active&photo=has_photo
+        narrows to members matching BOTH, not a choice between them."""
+        import members as members_module
+
+        client = self._setup(monkeypatch)
+        self._seed(client, self.SPECS)
+        client.tables["member"][0]["photo_url"] = "t1/members/m-0/photo.jpg"  # "Active far off"
+
+        result = members_module.list_members(
+            subscription_filter="active", photo_filter="has_photo", staff={"tenant_id": TENANT}
+        )
+        assert self._names(result) == {"Active far off"}
+
+    def test_unknown_photo_filter_is_rejected(self, monkeypatch):
+        import members as members_module
+        from fastapi import HTTPException
+        import pytest
+
+        client = self._setup(monkeypatch)
+        self._seed(client, self.SPECS)
+        with pytest.raises(HTTPException) as exc:
+            members_module.list_members(photo_filter="bogus", staff={"tenant_id": TENANT})
+        assert exc.value.status_code == 400
 
     def test_search_and_filter_combine(self, monkeypatch):
         """The text search runs against the whole dataset inside the filtered
