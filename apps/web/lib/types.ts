@@ -170,6 +170,19 @@ export type AttendanceUnmatched = {
   received_at: string;
 };
 
+// Roles creatable through POST /staff. 'owner' itself is deliberately
+// excluded — assigned exactly once, at signup, via bootstrap-tenant.
+export type CreatableStaffRole = "manager" | "trainer" | "front_desk";
+
+export type StaffMember = {
+  id: string;
+  tenant_id: string;
+  branch_id: string | null;
+  role: CreatableStaffRole | "owner";
+  email: string | null;
+  created_at: string;
+};
+
 export type Device = {
   id: string;
   tenant_id: string;

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Layout from "@/components/Layout";
 import DashboardSummaryView from "@/components/DashboardSummaryView";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth, useRequireOwner } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/api";
 import type {
   DashboardSummary,
@@ -57,7 +57,8 @@ function fmtMoney(n: number) {
 }
 
 export default function FinancePage() {
-  const { session, loading } = useAuth();
+  const { session, loading, role } = useAuth();
+  const authorized = useRequireOwner(role, loading);
 
   const [period, setPeriod] = useState("this_month");
   const [customFrom, setCustomFrom] = useState(todayISO());
@@ -256,7 +257,7 @@ export default function FinancePage() {
     ? members.filter((m) => m.name.toLowerCase().includes(memberFilter.toLowerCase()))
     : members;
 
-  if (loading || !session) {
+  if (loading || !session || !authorized) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <p>Loading…</p>

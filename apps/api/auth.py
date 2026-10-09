@@ -114,6 +114,26 @@ def get_current_staff(user=Depends(get_current_user)) -> dict:
     return staff
 
 
+def require_owner(staff: dict) -> None:
+    """Call as the first line of an owner-only route, after
+    `staff=Depends(get_current_staff)` has already resolved — NOT a
+    separate Depends in the chain, so direct-call tests (every route in
+    this codebase is tested by calling the function with a plain `staff`
+    dict, bypassing FastAPI's dependency resolution entirely) still
+    exercise this check rather than skipping it.
+
+    Gym OS's four staff_role values: owner, manager, trainer, front_desk.
+    Only the gym owner sees financial data and device management —
+    Dashboard, Finance, and Devices are owner-only (see NavBar.tsx's Owner
+    section); every other screen (Members, Plans, Check-in, Attendance) is
+    unrestricted for all staff roles. This is the real enforcement — the
+    frontend's nav hiding is a convenience only, same relationship as
+    get_current_super_admin/is_super_admin for /admin.
+    """
+    if staff.get("role") != "owner":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Owner access required")
+
+
 def get_super_admin_emails() -> set[str]:
     raw = os.environ.get("SUPER_ADMIN_EMAILS", "")
     return {e.strip().lower() for e in raw.split(",") if e.strip()}

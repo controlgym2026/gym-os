@@ -23,7 +23,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from auth import get_admin_client, get_current_staff
+from auth import get_admin_client, get_current_staff, require_owner
 from finance_period import (
     InvalidPeriod,
     format_range_label,
@@ -161,6 +161,7 @@ def get_summary(
     to: str | None = Query(default=None),
     staff=Depends(get_current_staff),
 ):
+    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
 
@@ -222,6 +223,7 @@ def get_income_transactions(
     """Paginated, period-scoped income transactions — the Income tab.
     Deliberately a separate endpoint from /summary's fixed recent_transactions
     (unrelated to the selected period, kept for the home dashboard)."""
+    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     page = max(1, page)

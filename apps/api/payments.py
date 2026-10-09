@@ -19,7 +19,7 @@ from datetime import date, datetime, time, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from auth import get_admin_client, get_current_staff
+from auth import get_admin_client, get_current_staff, require_owner
 from finance_period import IST
 from resources import get_member_or_404, get_subscription_or_404
 
@@ -132,7 +132,12 @@ def create_payment(subscription_id: str, body: PaymentCreate, staff=Depends(get_
 def create_income(body: IncomeCreate, staff=Depends(get_current_staff)):
     """Record a PT/service/product sale — not tied to any subscription,
     unlike create_payment above. member_id is optional (e.g. a walk-in
-    product sale with no member record at all)."""
+    product sale with no member record at all).
+
+    Owner-only (part of the Finance module) — unlike create_payment above,
+    which every staff role still needs for day-to-day subscription renewals
+    and due collection."""
+    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
 

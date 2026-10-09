@@ -23,6 +23,7 @@ from members import router as members_router
 from payments import router as payments_router
 from plans import router as plans_router
 from reports import router as reports_router
+from staff import router as staff_router
 from subscriptions import router as subscriptions_router
 
 load_dotenv()
@@ -63,6 +64,7 @@ app.include_router(admin_router)
 app.include_router(dashboard_router)
 app.include_router(expense_router)
 app.include_router(reports_router)
+app.include_router(staff_router)
 
 
 # Routes -------------------------------------------------------------------------

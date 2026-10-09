@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from auth import get_admin_client, get_current_staff
+from auth import get_admin_client, get_current_staff, require_owner
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -49,6 +49,7 @@ def _with_online_flag(device: dict) -> dict:
 
 @router.post("", status_code=201)
 def register_device(body: DeviceCreate, staff=Depends(get_current_staff)):
+    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     branch_id = get_or_create_default_branch(client, tenant_id)
@@ -79,6 +80,7 @@ def register_device(body: DeviceCreate, staff=Depends(get_current_staff)):
 
 @router.get("")
 def list_devices(staff=Depends(get_current_staff)):
+    require_owner(staff)
     client = get_admin_client()
     result = (
         client.table("device")
@@ -92,6 +94,7 @@ def list_devices(staff=Depends(get_current_staff)):
 
 @router.patch("/{device_id}")
 def update_device(device_id: str, body: DeviceUpdate, staff=Depends(get_current_staff)):
+    require_owner(staff)
     client = get_admin_client()
     tenant_id = staff["tenant_id"]
     existing = client.table("device").select("id").eq("tenant_id", tenant_id).eq("id", device_id).execute()

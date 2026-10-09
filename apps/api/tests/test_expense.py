@@ -18,7 +18,7 @@ from expense import (
 from tests.fake_client import FakeClient
 
 TENANT = "tenant-1"
-STAFF = {"tenant_id": TENANT, "id": "staff-1"}
+STAFF = {"tenant_id": TENANT, "id": "staff-1", "role": "owner"}  # expense module is owner-only, see TestOwnerOnly
 
 
 def _setup(monkeypatch):
@@ -200,3 +200,51 @@ class TestTenantIsolation:
             delete_expense("other", staff=STAFF)
         assert exc.value.status_code == 404
         assert len(client.tables["expense"]) == 1  # untouched
+
+
+class TestOwnerOnly:
+    """The whole expense module is part of Finance, owner-only — a
+    non-owner staff role (manager/trainer/front_desk) gets 403 from every
+    route here, same as devices.py and dashboard.py."""
+
+    NON_OWNER = {"tenant_id": TENANT, "id": "staff-2", "role": "front_desk"}
+
+    def test_create_rejects_non_owner(self, monkeypatch):
+        _setup(monkeypatch)
+        with pytest.raises(HTTPException) as exc:
+            create_expense(ExpenseCreate(category="Rent", amount=100), staff=self.NON_OWNER)
+        assert exc.value.status_code == 403
+
+    def test_list_rejects_non_owner(self, monkeypatch):
+        _setup(monkeypatch)
+        with pytest.raises(HTTPException) as exc:
+            list_expenses(staff=self.NON_OWNER)
+        assert exc.value.status_code == 403
+
+    def test_update_rejects_non_owner(self, monkeypatch):
+        _setup(monkeypatch)
+        with pytest.raises(HTTPException) as exc:
+            update_expense("whatever", ExpenseUpdate(amount=1), staff=self.NON_OWNER)
+        assert exc.value.status_code == 403
+
+    def test_delete_rejects_non_owner(self, monkeypatch):
+        _setup(monkeypatch)
+        with pytest.raises(HTTPException) as exc:
+            delete_expense("whatever", staff=self.NON_OWNER)
+        assert exc.value.status_code == 403
+
+    def test_category_presets_rejects_non_owner(self, monkeypatch):
+        from expense import list_category_presets
+
+        with pytest.raises(HTTPException) as exc:
+            list_category_presets(staff=self.NON_OWNER)
+        assert exc.value.status_code == 403
+
+    def test_manager_and_trainer_are_also_rejected_not_just_front_desk(self, monkeypatch):
+        """Only 'owner' passes — manager/trainer are Staff for this
+        feature, same bucket as front_desk (see the role-mapping decision)."""
+        _setup(monkeypatch)
+        for role in ("manager", "trainer"):
+            with pytest.raises(HTTPException) as exc:
+                create_expense(ExpenseCreate(category="Rent", amount=100), staff={"tenant_id": TENANT, "role": role})
+            assert exc.value.status_code == 403, role
