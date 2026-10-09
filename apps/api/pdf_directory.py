@@ -13,6 +13,7 @@ what staff already see on screen.
 
 from io import BytesIO
 
+from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -22,6 +23,31 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Table, Table
 COLS = 3
 CARD_W = 58 * mm
 PHOTO_SIDE = 50 * mm
+
+# Member photos come straight off a phone camera (multiple MB, several
+# thousand px per side) but the PDF only ever prints them at 50mm — passing
+# the originals to reportlab's Image() embeds every original byte in the
+# output (measured: 106 real photos -> a 10.7MB PDF) and decodes all of them
+# into memory at once during doc.build(), which OOM-crashed Render's free
+# (512MB) instance on the full 335-member directory (502, no response body,
+# ~28s in — a crash, not a timeout). Downscaling to print resolution before
+# handing bytes to reportlab fixes both: smaller PDF, far less peak memory.
+_MAX_PHOTO_PX = 400  # comfortably above 50mm's print resolution at any realistic DPI
+_PHOTO_JPEG_QUALITY = 75
+
+
+def _downscale_photo(photo_bytes: bytes) -> bytes:
+    """Best-effort: on any decode failure, return the original bytes
+    unchanged and let _photo_flowable's own fallback handle it."""
+    try:
+        img = PILImage.open(BytesIO(photo_bytes))
+        img = img.convert("RGB")
+        img.thumbnail((_MAX_PHOTO_PX, _MAX_PHOTO_PX), PILImage.LANCZOS)
+        out = BytesIO()
+        img.save(out, format="JPEG", quality=_PHOTO_JPEG_QUALITY, optimize=True)
+        return out.getvalue()
+    except Exception:
+        return photo_bytes
 
 # Same six hues as apps/web/components/MemberPhoto.tsx's AVATAR_COLORS, in
 # the same order, so a given name hashes to the same color in the app and
@@ -46,7 +72,7 @@ def _color_for(name: str) -> colors.Color:
 def _photo_flowable(member: dict, photo_bytes: bytes | None):
     if photo_bytes:
         try:
-            return Image(BytesIO(photo_bytes), width=PHOTO_SIDE, height=PHOTO_SIDE)
+            return Image(BytesIO(_downscale_photo(photo_bytes)), width=PHOTO_SIDE, height=PHOTO_SIDE)
         except Exception:
             pass  # corrupt/unreadable image — fall through to the placeholder
     initial = (member["name"].strip()[:1] or "?").upper()

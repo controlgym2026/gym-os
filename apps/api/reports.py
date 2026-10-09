@@ -49,8 +49,16 @@ def _download_one_photo(member_id: str, photo_url: str) -> tuple[str, bytes | No
     # thread-local caching (see auth.py) — never share one client instance
     # across threads, the same concurrency bug fixed earlier in this
     # project (shared httpx connection pool under real parallel load).
+    from pdf_directory import _downscale_photo  # deferred: only the PDF route needs Pillow/reportlab
+
     try:
-        return member_id, get_admin_client().storage.from_("member-media").download(photo_url)
+        raw = get_admin_client().storage.from_("member-media").download(photo_url)
+        # Downscale immediately so the (often multi-MB, phone-camera-resolution)
+        # original is never held in memory alongside every other member's —
+        # holding all originals until PDF build time OOM-crashed Render's
+        # free instance on the full, unfiltered directory (335 members, 106
+        # real photos): 502 with an empty body ~28s in, not a timeout.
+        return member_id, _downscale_photo(raw)
     except Exception:
         return member_id, None  # missing/corrupt object — that member just gets the placeholder
 
