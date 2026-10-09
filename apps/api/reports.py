@@ -1,0 +1,124 @@
+"""Daily Active/Expired/Due Excel digest (emailed) + on-demand member photo
+directory (PDF, downloaded from the app). Both reuse members.py's existing
+filtered-query and current-subscription-attachment helpers rather than
+re-querying the schema a third way.
+"""
+
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+
+from auth import get_admin_client, get_current_staff
+from email_sender import EmailSendError, send_email_with_attachment
+from excel_report import build_members_excel
+from members import MEMBER_FILTERS, _attach_current_subscriptions, _filtered_members_query, member_matches_filter
+
+router = APIRouter(prefix="/reports", tags=["reports"])
+
+# Hardcoded-for-now per the user's own choice (no settings UI yet) — env
+# vars rather than literals so recipients/tenant can be changed from
+# Render's dashboard without a code deploy, same pattern as
+# SUPER_ADMIN_EMAILS/FRONTEND_ORIGIN elsewhere in this codebase.
+_DEFAULT_RECIPIENTS = "singhankit639081@gmail.com,controlgym2026@gmail.com"
+_DEFAULT_TENANT_ID = "927a8361-3ec3-4b37-9c26-44b27044e0ab"  # Control Gym
+
+
+def _daily_report_recipients() -> list[str]:
+    raw = os.environ.get("DAILY_REPORT_RECIPIENTS", _DEFAULT_RECIPIENTS)
+    return [e.strip() for e in raw.split(",") if e.strip()]
+
+
+def _daily_report_tenant_id() -> str:
+    return os.environ.get("DAILY_REPORT_TENANT_ID", _DEFAULT_TENANT_ID)
+
+
+def _fetch_all_members_with_subscriptions(client, tenant_id: str, q: str | None = None) -> list[dict]:
+    """Every non-deleted member for the tenant, current_subscription
+    attached — unpaginated, for the two bulk-export use cases below (a
+    report/directory needs everyone, not one page at a time)."""
+    members = _filtered_members_query(client, tenant_id, q).execute().data
+    return _attach_current_subscriptions(client, tenant_id, members)
+
+
+def _download_member_photos(client, tenant_id: str, members: list[dict]) -> dict[str, bytes]:
+    """member_id -> raw photo bytes, for every member that has one. One
+    Storage download per photo (service_role, bypasses RLS) — fine at
+    Control Gym's current scale (a few dozen photographed members at
+    most); would need batching/parallelism if that grows into the
+    hundreds."""
+    photos: dict[str, bytes] = {}
+    for m in members:
+        if not m.get("photo_url"):
+            continue
+        try:
+            photos[m["id"]] = client.storage.from_("member-media").download(m["photo_url"])
+        except Exception:
+            continue  # missing/corrupt object — that member just gets the placeholder
+    return photos
+
+
+@router.get("/member-directory.pdf")
+def member_directory_pdf(
+    filter: str | None = Query(default=None),  # noqa: A002 — matches GET /members's own param name
+    plan_id: str | None = None,
+    staff=Depends(get_current_staff),
+):
+    from pdf_directory import build_member_directory_pdf  # deferred: reportlab import cost only on actual use
+
+    client = get_admin_client()
+    tenant_id = staff["tenant_id"]
+
+    if filter and filter not in MEMBER_FILTERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown filter '{filter}' — expected one of {MEMBER_FILTERS}")
+
+    members = _fetch_all_members_with_subscriptions(client, tenant_id)
+    if filter or plan_id:
+        members = [m for m in members if member_matches_filter(m.get("current_subscription"), filter, plan_id, photo_url=m.get("photo_url"))]
+    members.sort(key=lambda m: m["name"])
+
+    photos = _download_member_photos(client, tenant_id, members)
+    pdf_bytes = build_member_directory_pdf(members, photos)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="member-directory.pdf"'},
+    )
+
+
+@router.post("/daily-digest")
+def send_daily_digest(token: str = Query(...)):
+    """Triggered by an external cron hitting this URL once a day (same
+    pattern as the existing /health keep-alive cron) — there's no logged-in
+    user to authenticate as, so this checks a shared secret instead of
+    get_current_staff. See the deploy notes for the DAILY_REPORT_SECRET env
+    var this compares against."""
+    expected = os.environ.get("DAILY_REPORT_SECRET")
+    if not expected or token != expected:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    client = get_admin_client()
+    tenant_id = _daily_report_tenant_id()
+    members = _fetch_all_members_with_subscriptions(client, tenant_id)
+    xlsx_bytes = build_members_excel(members)
+
+    active = sum(1 for m in members if member_matches_filter(m.get("current_subscription"), "active"))
+    expired = sum(1 for m in members if member_matches_filter(m.get("current_subscription"), "expired"))
+    due = sum(1 for m in members if member_matches_filter(m.get("current_subscription"), "due"))
+
+    recipients = _daily_report_recipients()
+    try:
+        send_email_with_attachment(
+            to=recipients,
+            subject="Gym Control — Daily member report",
+            html_body=(
+                f"<p>Today's member report is attached.</p>"
+                f"<ul><li>Active: {active}</li><li>Expired: {expired}</li><li>Due: {due}</li></ul>"
+            ),
+            attachment_filename="gym-control-daily-report.xlsx",
+            attachment_bytes=xlsx_bytes,
+        )
+    except EmailSendError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Report built but email failed to send: {exc}") from exc
+
+    return {"sent_to": recipients, "active": active, "expired": expired, "due": due}

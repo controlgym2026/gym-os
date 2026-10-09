@@ -4,7 +4,7 @@ import MemberPhoto from "@/components/MemberPhoto";
 import MemberDetailsModal from "@/components/MemberDetailsModal";
 import PhotoCapture from "@/components/PhotoCapture";
 import { useAuth } from "@/lib/useAuth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, downloadFile } from "@/lib/api";
 import { uploadMemberPhoto } from "@/lib/photos";
 import type { Member, MemberImportResult, MembershipPlan, PaginatedMembers, SubscriptionStatus } from "@/lib/types";
 
@@ -81,6 +81,28 @@ export default function MembersPage() {
   const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [downloadingDirectory, setDownloadingDirectory] = useState(false);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
+
+  async function handleDownloadDirectory() {
+    if (!session) return;
+    setDownloadingDirectory(true);
+    setDirectoryError(null);
+    try {
+      // Respects whatever status filter is active (e.g. just Active
+      // members) — not the plan filter or search text, since those are
+      // about finding one person, not defining "who's in the directory".
+      const params = new URLSearchParams();
+      if (statusFilter) params.set("filter", statusFilter);
+      await downloadFile(`/reports/member-directory.pdf?${params}`, "member-directory.pdf", {
+        token: session.access_token,
+      });
+    } catch (err) {
+      setDirectoryError(err instanceof Error ? err.message : "Could not download the directory");
+    } finally {
+      setDownloadingDirectory(false);
+    }
+  }
 
   async function loadMembers(
     token: string,
@@ -261,6 +283,14 @@ export default function MembersPage() {
               {importing ? "Importing…" : "Import CSV"}
             </button>
             <button
+              onClick={handleDownloadDirectory}
+              disabled={downloadingDirectory}
+              title="Printable PDF: every member's photo + name/ID/phone/status, as a grid"
+              className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              {downloadingDirectory ? "Preparing…" : "Download Directory (PDF)"}
+            </button>
+            <button
               onClick={() => setShowForm((v) => !v)}
               className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
             >
@@ -270,6 +300,7 @@ export default function MembersPage() {
         </div>
 
         {importError && <p className="text-red-600 text-sm">{importError}</p>}
+        {directoryError && <p className="text-red-600 text-sm">{directoryError}</p>}
         {importResult && (
           <div className="border rounded p-3 text-sm flex flex-col gap-1">
             <p>
