@@ -5,6 +5,7 @@ re-querying the schema a third way.
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -40,20 +41,36 @@ def _fetch_all_members_with_subscriptions(client, tenant_id: str, q: str | None 
     return _attach_current_subscriptions(client, tenant_id, members)
 
 
-def _download_member_photos(client, tenant_id: str, members: list[dict]) -> dict[str, bytes]:
-    """member_id -> raw photo bytes, for every member that has one. One
-    Storage download per photo (service_role, bypasses RLS) — fine at
-    Control Gym's current scale (a few dozen photographed members at
-    most); would need batching/parallelism if that grows into the
-    hundreds."""
+_PHOTO_DOWNLOAD_WORKERS = 8
+
+
+def _download_one_photo(member_id: str, photo_url: str) -> tuple[str, bytes | None]:
+    # Each worker thread gets its OWN client via get_admin_client()'s
+    # thread-local caching (see auth.py) — never share one client instance
+    # across threads, the same concurrency bug fixed earlier in this
+    # project (shared httpx connection pool under real parallel load).
+    try:
+        return member_id, get_admin_client().storage.from_("member-media").download(photo_url)
+    except Exception:
+        return member_id, None  # missing/corrupt object — that member just gets the placeholder
+
+
+def _download_member_photos(members: list[dict]) -> dict[str, bytes]:
+    """member_id -> raw photo bytes, for every member that has one.
+    Downloaded in parallel (a Storage download is I/O-bound, not CPU-bound)
+    — sequential downloads of even a few dozen photos were slow enough to
+    blow past Render's gateway timeout (measured: 16 photos, 70+ seconds,
+    502) well before PDF generation itself ever started."""
+    to_fetch = [(m["id"], m["photo_url"]) for m in members if m.get("photo_url")]
     photos: dict[str, bytes] = {}
-    for m in members:
-        if not m.get("photo_url"):
-            continue
-        try:
-            photos[m["id"]] = client.storage.from_("member-media").download(m["photo_url"])
-        except Exception:
-            continue  # missing/corrupt object — that member just gets the placeholder
+    if not to_fetch:
+        return photos
+    with ThreadPoolExecutor(max_workers=_PHOTO_DOWNLOAD_WORKERS) as pool:
+        futures = [pool.submit(_download_one_photo, mid, url) for mid, url in to_fetch]
+        for future in as_completed(futures):
+            member_id, data = future.result()
+            if data is not None:
+                photos[member_id] = data
     return photos
 
 
@@ -76,7 +93,7 @@ def member_directory_pdf(
         members = [m for m in members if member_matches_filter(m.get("current_subscription"), filter, plan_id, photo_url=m.get("photo_url"))]
     members.sort(key=lambda m: m["name"])
 
-    photos = _download_member_photos(client, tenant_id, members)
+    photos = _download_member_photos(members)
     pdf_bytes = build_member_directory_pdf(members, photos)
 
     return Response(
