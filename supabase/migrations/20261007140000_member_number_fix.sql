@@ -20,8 +20,21 @@
 
 alter table public.member alter column member_number drop not null;
 
+-- The unique index below enforces uniqueness per-row as this statement
+-- runs (it's a bare index, not a deferrable constraint), so reshuffling
+-- numbers in place collides mid-update — e.g. renumbering some member to
+-- 1 while another row not yet processed still holds 1. Dropping it for
+-- the duration of the renumbering and recreating it afterward sidesteps
+-- that; the final state (1..N per tenant for active rows, NULL for
+-- deleted ones) still can't have a real duplicate.
+drop index if exists public.member_tenant_id_member_number_key;
+
 do $$
 begin
+  update public.member
+  set member_number = null
+  where deleted_at is not null;
+
   with ranked as (
     select id, row_number() over (partition by tenant_id order by name) as rn
     from public.member
@@ -31,8 +44,6 @@ begin
   set member_number = ranked.rn
   from ranked
   where ranked.id = m.id;
-
-  update public.member
-  set member_number = null
-  where deleted_at is not null;
 end $$;
+
+create unique index member_tenant_id_member_number_key on public.member (tenant_id, member_number);
