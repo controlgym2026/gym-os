@@ -102,6 +102,11 @@ export default function MemberProfilePage() {
     setPlans(plansData);
 
     const current = subs[0]; // most recent, subs are already sorted desc
+    // Renewing a lapsed plan defaults to the date it expired (today minus
+    // the days expired), not today, so the expired days aren't given free.
+    setNewSubStartDate(
+      current?.status === "EXPIRED" && current.end_date ? current.end_date : new Date().toISOString().slice(0, 10),
+    );
     if (current) {
       setPayments(await apiFetch<Payment[]>(`/subscriptions/${current.id}/payments`, { token }));
     } else {
@@ -148,7 +153,6 @@ export default function MemberProfilePage() {
         body: { plan_id: selectedPlanId, start_date: newSubStartDate, due_amount: Number(newSubDueAmount) || 0 },
       });
       setSelectedPlanId("");
-      setNewSubStartDate(new Date().toISOString().slice(0, 10));
       setNewSubDueAmount("0");
       await loadAll(session.access_token, memberId);
     } catch (err) {
@@ -492,6 +496,11 @@ export default function MemberProfilePage() {
                     <span className="text-amber-600 font-medium">₹{current.due_amount} due</span>
                   </>
                 )}
+                <br />
+                Paid{" "}
+                <span className="font-medium">
+                  ₹{payments.filter((p) => p.status === "completed").reduce((sum, p) => sum + Number(p.amount), 0)}
+                </span>
               </p>
               <div className="flex gap-2">
                 {(FREEZE_RESUME_CANCEL[current.status] ?? []).map((next) => (

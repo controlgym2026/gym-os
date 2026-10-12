@@ -32,6 +32,16 @@ function extractErrorDetail(err: unknown, fallback: string): string {
   return match ? match[1] : err.message;
 }
 
+/** What was actually paid against one subscription (completed payments only
+ * — pending/failed/refunded don't count), plus any discount given. */
+function paidFor(subscriptionId: string, transactions: Payment[]) {
+  const rows = transactions.filter((t) => t.subscription_id === subscriptionId && t.status === "completed");
+  return {
+    paid: rows.reduce((sum, t) => sum + Number(t.amount), 0),
+    discount: rows.reduce((sum, t) => sum + Number(t.discount_amount || 0), 0),
+  };
+}
+
 function daysLeft(endDate: string): number {
   const ms = new Date(endDate).getTime() - new Date().setHours(0, 0, 0, 0);
   return Math.ceil(ms / 86_400_000);
@@ -56,6 +66,7 @@ export default function MemberDetailsModal({
   const [busy, setBusy] = useState(false);
 
   const current = subscriptions[0] ?? null;
+  const currentPaid = current ? paidFor(current.id, transactions) : null;
   const activePlans = plans.filter((p) => p.is_active);
   const planName = (planId: string) => plans.find((p) => p.id === planId)?.name ?? planId;
 
@@ -178,6 +189,12 @@ export default function MemberDetailsModal({
                     <span className="text-amber-600 font-medium"> · ₹{current.due_amount} due</span>
                   )}
                 </p>
+                {currentPaid && (
+                  <p className="text-sm text-gray-700">
+                    Paid <span className="font-medium">₹{currentPaid.paid}</span>
+                    {currentPaid.discount > 0 && ` · ₹${currentPaid.discount} discount`}
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-sm text-gray-500">No active plan</p>
@@ -240,6 +257,7 @@ export default function MemberDetailsModal({
       {view === "edit" && current && (
         <EditMembershipForm
           subscription={current}
+          paid={currentPaid}
           plans={activePlans}
           onCancel={() => setView("details")}
           onDone={async () => {
@@ -336,15 +354,17 @@ function EarlyRenewForm({
   const [planId, setPlanId] = useState("");
   // Not-yet-expired current subscription -> default to carrying the
   // remaining time forward (starting the new one from its end_date).
-  // Already expired/cancelled (or none, i.e. "Assign Plan") -> default to
-  // today. Either way it's a plain editable field, not a silent default —
-  // that's the one thing this form used to not expose at all.
+  // Already expired -> also default to its end_date (today minus the days
+  // it's been expired), so the lapsed days count against the new plan
+  // instead of being given away free. Cancelled (or none, i.e. "Assign
+  // Plan") -> default to today. Either way it's a plain editable field.
   const notYetExpired =
     current &&
     (current.status === "ACTIVE" || current.status === "FROZEN") &&
     (!current.end_date || new Date(current.end_date) >= new Date(new Date().setHours(0, 0, 0, 0)));
+  const lapsed = !notYetExpired && current?.status !== "CANCELLED" && !!current?.end_date;
   const [startDate, setStartDate] = useState(
-    () => (notYetExpired && current?.end_date) || new Date().toISOString().slice(0, 10),
+    () => ((notYetExpired || lapsed) && current?.end_date) || new Date().toISOString().slice(0, 10),
   );
   const [amountPaid, setAmountPaid] = useState("");
   const [discount, setDiscount] = useState("0");
@@ -436,6 +456,11 @@ function EarlyRenewForm({
         {notYetExpired && (
           <span className="text-xs text-gray-500">
             Defaults to the current plan&rsquo;s end date so no paid time is lost — change it if that&rsquo;s wrong.
+          </span>
+        )}
+        {lapsed && (
+          <span className="text-xs text-gray-500">
+            Defaults to the date the last plan expired, so the expired days are counted — change it if that&rsquo;s wrong.
           </span>
         )}
         <input
@@ -616,11 +641,13 @@ function EditMemberForm({
 
 function EditMembershipForm({
   subscription,
+  paid,
   plans,
   onCancel,
   onDone,
 }: {
   subscription: Subscription;
+  paid: { paid: number; discount: number } | null;
   plans: MembershipPlan[];
   onCancel: () => void;
   onDone: () => void;
@@ -663,6 +690,12 @@ function EditMembershipForm({
         ← Back
       </button>
       <p className="text-xs text-gray-500">For correcting mistakes — not the normal renewal flow.</p>
+      {paid && (
+        <p className="text-sm text-gray-700">
+          Amount paid for this plan: <span className="font-medium">₹{paid.paid}</span>
+          {paid.discount > 0 && ` (₹${paid.discount} discount)`}
+        </p>
+      )}
       <label className="flex flex-col gap-1 text-sm">
         Plan
         <select className="border rounded px-2 py-1.5" value={planId} onChange={(e) => setPlanId(e.target.value)}>
