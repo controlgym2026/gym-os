@@ -377,12 +377,27 @@ function EarlyRenewForm({
   function selectPlan(id: string) {
     setPlanId(id);
     const p = plans.find((pl) => pl.id === id);
-    setAmountPaid(p ? String(p.price) : "");
+    setAmountPaid(p ? String(Math.max(0, p.price - (Number(discount) || 0))) : "");
+  }
+
+  // Same as the add-member form: amount paid follows the final price
+  // (price minus discount) unless staff typed a different amount, so a
+  // discounted renewal isn't recorded as full-price income.
+  function changeDiscount(value: string) {
+    if (selectedPlan && amountPaid === String(Math.max(0, selectedPlan.price - (Number(discount) || 0)))) {
+      setAmountPaid(String(Math.max(0, selectedPlan.price - (Number(value) || 0))));
+    }
+    setDiscount(value);
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session || !selectedPlan) return;
+    const finalPrice = Math.max(0, selectedPlan.price - (Number(discount) || 0));
+    if ((Number(amountPaid) || 0) > finalPrice) {
+      setError(`Amount paid is more than the final price after discount (₹${finalPrice}). Enter the amount actually received.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -491,7 +506,7 @@ function EarlyRenewForm({
           step="0.01"
           className="border rounded px-2 py-1.5"
           value={discount}
-          onChange={(e) => setDiscount(e.target.value)}
+          onChange={(e) => changeDiscount(e.target.value)}
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">

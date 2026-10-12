@@ -76,7 +76,18 @@ export default function MembersPage() {
   function selectPlan(id: string) {
     setPlanId(id);
     const p = plans.find((pl) => pl.id === id);
-    setAmountPaid(p ? String(p.price) : "");
+    setAmountPaid(p ? String(Math.max(0, p.price - (Number(discount) || 0))) : "");
+  }
+
+  // Amount paid defaults to the final price (plan price minus discount).
+  // It used to stay at the full plan price when a discount was typed in,
+  // so discounted payments were recorded as full-price income. Keep it in
+  // step with the discount unless staff already typed a different amount.
+  function changeDiscount(value: string) {
+    if (selectedPlan && amountPaid === String(Math.max(0, selectedPlan.price - (Number(discount) || 0)))) {
+      setAmountPaid(String(Math.max(0, selectedPlan.price - (Number(value) || 0))));
+    }
+    setDiscount(value);
   }
 
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +189,15 @@ export default function MembersPage() {
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
+    // Checked before the member is created so a rejected amount doesn't
+    // leave a member saved without their plan.
+    if (selectedPlan) {
+      const finalPrice = Math.max(0, selectedPlan.price - (Number(discount) || 0));
+      if ((Number(amountPaid) || 0) > finalPrice) {
+        setError(`Amount paid is more than the final price after discount (₹${finalPrice}). Enter the amount actually received.`);
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -422,7 +442,7 @@ export default function MembersPage() {
                       step="0.01"
                       className="border rounded px-3 py-2"
                       value={discount}
-                      onChange={(e) => setDiscount(e.target.value)}
+                      onChange={(e) => changeDiscount(e.target.value)}
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm">
