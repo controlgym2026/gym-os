@@ -135,12 +135,12 @@ export default function MemberDetailsModal({
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <MemberPhoto path={member.photo_url} name={member.name} size={56} />
-        <div className="flex-1">
-          <h2 className="text-lg font-semibold text-gray-900">{member.name}</h2>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-semibold text-gray-900 truncate">{member.name}</h2>
           <p className="text-xs text-gray-500">Member #{member.member_number}</p>
         </div>
         {member.phone && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <a
               href={`tel:${member.phone}`}
               title="Call"
@@ -201,35 +201,35 @@ export default function MemberDetailsModal({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-2">
             <button
               onClick={() => setView("early-renew")}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
+              className="rounded border px-3 py-3 text-sm text-left hover:bg-gray-50"
             >
               🔁 Early Renew
             </button>
             <button
               onClick={() => setView(current ? "edit" : "early-renew")}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
+              className="rounded border px-3 py-3 text-sm text-left hover:bg-gray-50"
             >
               {current ? "✏️ Edit Membership" : "➕ Assign Plan"}
             </button>
             <button
               onClick={handleTogglePause}
               disabled={busy || !current || (current.status !== "ACTIVE" && current.status !== "FROZEN")}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50 disabled:opacity-40"
+              className="rounded border px-3 py-3 text-sm text-left hover:bg-gray-50 disabled:opacity-40"
             >
               {current?.status === "FROZEN" ? "▶️ Resume Membership" : "⏸️ Pause Membership"}
             </button>
             <button
               onClick={() => setView("history")}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
+              className="rounded border px-3 py-3 text-sm text-left hover:bg-gray-50"
             >
               🧾 Transaction History
             </button>
             <button
               onClick={() => setView("edit-member")}
-              className="rounded border px-3 py-2 text-sm text-left hover:bg-gray-50"
+              className="rounded border px-3 py-3 text-sm text-left hover:bg-gray-50"
             >
               🧑 Edit Member
             </button>
@@ -323,12 +323,20 @@ export default function MemberDetailsModal({
 
 function ModalShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 sm:p-4"
+      onClick={onClose}
+    >
+      {/* Phones: a full-width sheet from the bottom; tablets/desktop: a centered card. */}
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6"
+        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl sm:max-w-lg w-full max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="float-right text-gray-400 hover:text-gray-700 -mt-2 -mr-2">
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="float-right w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-700 -mt-2 -mr-2"
+        >
           ✕
         </button>
         {children}

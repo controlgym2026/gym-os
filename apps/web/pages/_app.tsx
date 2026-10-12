@@ -27,6 +27,7 @@ export default function App({ Component, pageProps }: AppProps) {
           own next/head and Next merges it in. */}
       <Head>
         <title>Gym Control</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="description" content="Gym Control — gym management software. A product of Livnexa Care Pvt Ltd." />
       </Head>
       <Component {...pageProps} />

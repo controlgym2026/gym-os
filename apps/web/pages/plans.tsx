@@ -97,7 +97,7 @@ export default function PlansPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-xl font-semibold">Membership plans</h1>
           <button
             onClick={showForm ? () => setShowForm(false) : startCreate}
@@ -164,8 +164,8 @@ export default function PlansPage() {
 
         <ul className="flex flex-col divide-y border rounded">
           {plans.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 p-3">
-              <div className="flex flex-col flex-1">
+            <li key={p.id} className="flex items-center flex-wrap gap-x-3 gap-y-1 p-3">
+              <div className="flex flex-col flex-1 min-w-[10rem]">
                 <span className={`font-medium ${p.is_active ? "" : "line-through opacity-50"}`}>{p.name}</span>
                 <span className="text-sm opacity-70">
                   {p.duration_days}d · ₹{p.price}

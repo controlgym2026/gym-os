@@ -316,7 +316,7 @@ export default function FinancePage() {
         )}
 
         {/* Income / Expense tabs */}
-        <div className="flex gap-2 border-b">
+        <div className="flex gap-2 border-b overflow-x-auto">
           <button
             onClick={() => setTab("income")}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -337,7 +337,7 @@ export default function FinancePage() {
 
         {tab === "income" && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="font-semibold text-gray-900">Income transactions</h2>
               <button
                 onClick={() => setShowAddIncome((v) => !v)}
@@ -492,7 +492,7 @@ export default function FinancePage() {
               </table>
             </div>
             {income && income.total > 0 && (
-              <div className="flex items-center justify-between text-sm text-gray-500">
+              <div className="flex items-center justify-between flex-wrap gap-2 text-sm text-gray-500">
                 <span>
                   Showing {(incomePage - 1) * PAGE_SIZE + 1}–{Math.min(incomePage * PAGE_SIZE, income.total)} of{" "}
                   {income.total}
@@ -520,7 +520,7 @@ export default function FinancePage() {
 
         {tab === "expense" && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="font-semibold text-gray-900">Expenses</h2>
               <button
                 onClick={showExpenseForm ? () => setShowExpenseForm(false) : startAddExpense}
@@ -622,7 +622,7 @@ export default function FinancePage() {
                       </td>
                       <td className="p-2.5 text-gray-900">{ex.category}</td>
                       <td className="p-2.5 text-gray-700">{ex.payment_mode}</td>
-                      <td className="p-2.5 text-gray-500">{ex.description || "—"}</td>
+                      <td className="p-2.5 text-gray-500 min-w-[8rem]">{ex.description || "—"}</td>
                       <td className="p-2.5 font-medium text-gray-900">{fmtMoney(ex.amount)}</td>
                       <td className="p-2.5">
                         <div className="flex gap-3">
@@ -650,7 +650,7 @@ export default function FinancePage() {
               </table>
             </div>
             {expenses && expenses.total > 0 && (
-              <div className="flex items-center justify-between text-sm text-gray-500">
+              <div className="flex items-center justify-between flex-wrap gap-2 text-sm text-gray-500">
                 <span>
                   Showing {(expensePage - 1) * PAGE_SIZE + 1}–{Math.min(expensePage * PAGE_SIZE, expenses.total)} of{" "}
                   {expenses.total}

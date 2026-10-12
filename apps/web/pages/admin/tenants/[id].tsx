@@ -223,7 +223,7 @@ export default function AdminTenantDetailPage() {
             ))}
           </div>
 
-          <form onSubmit={handleSavePlanTier} className="flex gap-2 items-end pt-2 border-t mt-1">
+          <form onSubmit={handleSavePlanTier} className="flex flex-wrap gap-2 items-end pt-2 border-t mt-1">
             <label className="flex flex-col gap-1 text-sm flex-1">
               Plan tier
               <input
@@ -271,7 +271,7 @@ export default function AdminTenantDetailPage() {
               <span className="opacity-60">No subscription date set yet.</span>
             )}
           </p>
-          <form onSubmit={handleSaveSubscription} className="flex gap-2 items-end">
+          <form onSubmit={handleSaveSubscription} className="flex flex-wrap gap-2 items-end">
             <label className="flex flex-col gap-1 text-sm">
               Expires on
               <input

@@ -92,7 +92,7 @@ export default function CheckInPage() {
           {results.map((m) => (
             <li key={m.id} className="flex items-center gap-3 p-3">
               <MemberPhoto path={m.photo_url} name={m.name} />
-              <span className="flex-1 font-medium">{m.name}</span>
+              <span className="flex-1 min-w-0 font-medium truncate">{m.name}</span>
               <button
                 onClick={() => handleCheckIn(m)}
                 disabled={checkingInId === m.id}

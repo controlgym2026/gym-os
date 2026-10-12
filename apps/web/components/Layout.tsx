@@ -9,7 +9,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <>
       <NavBar />
-      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">{children}</main>
+      <main className="max-w-6xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-6">{children}</main>
     </>
   );
 }

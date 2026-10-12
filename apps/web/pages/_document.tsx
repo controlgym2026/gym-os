@@ -13,7 +13,6 @@ export default function Document() {
         <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#000000" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
         {/* Installable on a phone ("Add to Home Screen") as a standalone,
             app-like window — see public/manifest.json. */}

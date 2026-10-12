@@ -199,7 +199,7 @@ export default function PhotoCapture({
               ref={videoRef}
               playsInline
               muted
-              className="w-64 h-64 rounded-lg object-cover bg-black"
+              className="w-64 h-64 max-w-full rounded-lg object-cover bg-black"
               style={{ transform: "scaleX(-1)" }} /* mirror: a selfie view people expect */
             />
             <div className="flex gap-2">

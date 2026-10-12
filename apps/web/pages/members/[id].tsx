@@ -302,14 +302,14 @@ export default function MemberProfilePage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           <button
             onClick={() => setShowPhotoCapture((v) => !v)}
             title={member.photo_url ? "Change photo" : "Add a photo"}
             className="flex flex-col items-center gap-1 shrink-0"
           >
             <span className="relative rounded-xl">
-              <MemberPhoto path={member.photo_url} name={member.name} size={112} shape="square" />
+              <MemberPhoto path={member.photo_url} name={member.name} size={88} shape="square" />
               {/* Always visible, not hover-only — a hover affordance never
                   shows up on a phone's touch screen, which is exactly where
                   this button matters most. */}
@@ -321,21 +321,23 @@ export default function MemberProfilePage() {
               {member.photo_url ? "Change photo" : "Add photo"}
             </span>
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold">
+          <div className="flex-1 min-w-[10rem]">
+            <h1 className="text-xl font-semibold break-words">
               {member.name} <span className="text-sm font-normal opacity-50">#{member.member_number}</span>
             </h1>
-            <p className="text-sm opacity-70">{member.phone || "—"} · {member.email || "—"}</p>
+            <p className="text-sm opacity-70 break-all">{member.phone || "—"} · {member.email || "—"}</p>
           </div>
-          <button onClick={handleOpenEditMember} className="rounded border px-3 py-1.5 text-sm">
-            Edit member
-          </button>
-          <button
-            onClick={handleCheckIn}
-            className="rounded bg-yellow-400 text-black px-3 py-1.5 text-sm"
-          >
-            Check in
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button onClick={handleOpenEditMember} className="flex-1 sm:flex-none rounded border px-3 py-2 text-sm">
+              Edit member
+            </button>
+            <button
+              onClick={handleCheckIn}
+              className="flex-1 sm:flex-none rounded bg-yellow-400 text-black px-3 py-2 text-sm"
+            >
+              Check in
+            </button>
+          </div>
         </div>
 
         {showPhotoCapture && (
@@ -571,7 +573,7 @@ export default function MemberProfilePage() {
               {payments.length > 0 && (
                 <ul className="text-sm divide-y border rounded mt-1">
                   {payments.map((p) => (
-                    <li key={p.id} className="p-2 flex justify-between">
+                    <li key={p.id} className="p-2 flex justify-between gap-2">
                       <span>₹{p.amount} · {p.method}{p.gateway_ref ? ` · ${p.gateway_ref}` : ""}</span>
                       <span className="opacity-70">{p.status}</span>
                     </li>
@@ -639,7 +641,7 @@ export default function MemberProfilePage() {
           <h2 className="font-semibold mb-2">Attendance history</h2>
           <ul className="text-sm divide-y">
             {attendance.map((a) => (
-              <li key={a.id} className="py-1.5 flex justify-between">
+              <li key={a.id} className="py-1.5 flex justify-between gap-2">
                 <span>{new Date(a.checked_in_at).toLocaleString()}</span>
                 <span className="opacity-70">{a.source}</span>
               </li>

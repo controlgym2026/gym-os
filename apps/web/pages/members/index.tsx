@@ -293,7 +293,7 @@ export default function MembersPage() {
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-xl font-semibold">Members</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <input
               ref={importInputRef}
               type="file"
@@ -504,7 +504,7 @@ export default function MembersPage() {
         )}
 
         <div className="flex gap-2 flex-wrap items-center">
-          <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[16rem]">
+          <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto sm:flex-1 sm:min-w-[16rem]">
             <div className="relative flex-1">
               <input
                 className="border rounded px-3 py-2 w-full pr-8"
@@ -530,7 +530,7 @@ export default function MembersPage() {
           </form>
 
           <select
-            className="border rounded px-3 py-2 text-sm"
+            className="border rounded px-3 py-2 text-sm flex-1 min-w-0 sm:flex-none"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             aria-label="Filter by status"
@@ -546,7 +546,7 @@ export default function MembersPage() {
           {/* Independent of the status dropdown above — the two combine as
               AND (e.g. "Expired" + "Has photo"), not a single either/or choice. */}
           <select
-            className="border rounded px-3 py-2 text-sm"
+            className="border rounded px-3 py-2 text-sm flex-1 min-w-0 sm:flex-none"
             value={photoFilter}
             onChange={(e) => setPhotoFilter(e.target.value)}
             aria-label="Filter by photo"
@@ -557,7 +557,7 @@ export default function MembersPage() {
           </select>
 
           <select
-            className="border rounded px-3 py-2 text-sm"
+            className="border rounded px-3 py-2 text-sm flex-1 min-w-0 sm:flex-none"
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
             aria-label="Filter by plan"
@@ -592,7 +592,57 @@ export default function MembersPage() {
 
         {listError && <p className="text-red-600 text-sm">{listError}</p>}
 
-        <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
+        {/* Phones: one card per member instead of an 8-column table. */}
+        <ul className="md:hidden flex flex-col gap-2">
+          {members.map((m) => {
+            const sub = m.current_subscription;
+            const label = sub ? daysLeftLabel(sub.end_date, sub.sessions_remaining) : null;
+            return (
+              <li key={m.id} className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 flex items-center gap-3">
+                <button onClick={() => setSelectedMemberId(m.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                  <MemberPhoto path={m.photo_url} name={m.name} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium text-gray-900 truncate">
+                      {m.name} <span className="text-xs font-normal text-gray-400">#{m.member_number}</span>
+                    </span>
+                    <span className="text-xs text-gray-500">{m.phone || "—"}</span>
+                    {sub ? (
+                      <span className="text-xs flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span className={label!.startsWith("Expired") ? "text-red-600 font-semibold" : "text-gray-700"}>
+                          {label}
+                        </span>
+                        {sub.due_amount > 0 && <span className="text-amber-600 font-medium">₹{sub.due_amount} due</span>}
+                        <span className={`px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[sub.status]}`}>
+                          {sub.status.charAt(0) + sub.status.slice(1).toLowerCase()}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400 mt-0.5">No active plan</span>
+                    )}
+                  </div>
+                </button>
+                {m.phone && (
+                  <a
+                    href={`https://wa.me/${digitsOnly(m.phone)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="WhatsApp"
+                    className="shrink-0 w-10 h-10 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center"
+                  >
+                    🟢
+                  </a>
+                )}
+              </li>
+            );
+          })}
+          {members.length === 0 && !listError && (
+            <li className="p-4 text-center text-gray-400 text-sm">
+              {statusFilter || photoFilter || planFilter || q ? "No members match these filters." : "No members yet."}
+            </li>
+          )}
+        </ul>
+
+        <div className="hidden md:block overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-left">
@@ -700,7 +750,7 @@ export default function MembersPage() {
             <span>
               Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} members
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <label className="flex items-center gap-1">
                 Per page
                 <select

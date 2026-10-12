@@ -68,7 +68,7 @@ export default function DevicesPage() {
   return (
     <Layout>
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-xl font-semibold">Devices</h1>
           <button
             onClick={() => setShowForm((v) => !v)}

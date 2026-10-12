@@ -32,16 +32,16 @@ function fmtMoney(n: number) {
 function StatCard({ icon, label, value, hero = false }: { icon: string; label: string; value: number; hero?: boolean }) {
   return (
     <div
-      className={`rounded-2xl p-4 flex items-center gap-3 shadow-sm border bg-white border-gray-200 ${
+      className={`min-w-0 rounded-2xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-sm border bg-white border-gray-200 ${
         hero ? "border-l-4 border-l-yellow-400" : ""
       }`}
     >
-      <span className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg bg-yellow-50">
+      <span className="shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center sm:text-lg bg-yellow-50">
         {icon}
       </span>
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <span className="text-xs text-gray-500">{label}</span>
-        <span className="text-xl font-bold text-gray-900">{fmtMoney(value)}</span>
+        <span className="text-base sm:text-xl font-bold text-gray-900 truncate">{fmtMoney(value)}</span>
       </div>
     </div>
   );
@@ -59,11 +59,11 @@ function CategoryCard({
   amount: number;
 }) {
   return (
-    <div className="rounded-xl p-3 flex flex-col gap-1 bg-white border border-gray-200 shadow-sm">
+    <div className="min-w-0 rounded-xl p-3 flex flex-col gap-1 bg-white border border-gray-200 shadow-sm">
       <span className="text-sm">
         {icon} <span className="text-gray-500">{label}</span>
       </span>
-      <span className="text-lg font-semibold text-gray-900">{fmtMoney(amount)}</span>
+      <span className="text-base sm:text-lg font-semibold text-gray-900 truncate">{fmtMoney(amount)}</span>
       <span className="text-xs text-gray-400">
         {count} {count === 1 ? "txn" : "txns"}
       </span>
@@ -136,7 +136,7 @@ export default function DashboardSummaryView({
             <tbody>
               {summary.recent_transactions.map((t, i) => (
                 <tr key={t.id} className={i % 2 === 1 ? "bg-gray-50" : "bg-white"}>
-                  <td className="p-2.5">
+                  <td className="p-2.5 whitespace-nowrap">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_COLOR[t.transaction_type]}`}>
                       {TYPE_LABEL[t.transaction_type]}
                     </span>

@@ -21,3 +21,26 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Phones/tablets: nothing may make the page wider than the screen (wide
+   tables scroll inside their own overflow-x-auto box instead), and form
+   fields use 16px text — iOS Safari zooms the whole page in on focus for
+   anything smaller and doesn't zoom back out, which is what made pages
+   look like they "don't fit". */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  overflow-x: clip;
+}
+img,
+video {
+  max-width: 100%;
+}
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
