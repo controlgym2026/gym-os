@@ -30,6 +30,25 @@ function digitsOnly(phone: string) {
   return phone.replace(/\D/g, "");
 }
 
+/** Solid, high-contrast pill + matching card accent for the card view,
+ * where status is the first thing staff scan for. */
+const STATUS_SOLID: Record<SubscriptionStatus, { pill: string; accent: string }> = {
+  ACTIVE: { pill: "bg-emerald-600 text-white", accent: "border-l-emerald-500" },
+  FROZEN: { pill: "bg-blue-600 text-white", accent: "border-l-blue-500" },
+  EXPIRED: { pill: "bg-red-600 text-white", accent: "border-l-red-600" },
+  CANCELLED: { pill: "bg-gray-500 text-white", accent: "border-l-gray-400" },
+};
+
+type ListView = "cards" | "table";
+const VIEW_STORAGE_KEY = "members.view";
+
+/** Days until end_date (negative once it's passed), or null for
+ * session-based plans with no end date. */
+function daysUntil(endDate: string | null): number | null {
+  if (!endDate) return null;
+  return Math.ceil((new Date(endDate).getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
+}
+
 function daysLeftLabel(endDate: string | null, sessionsRemaining: number | null): string {
   if (endDate) {
     const ms = new Date(endDate).getTime() - new Date().setHours(0, 0, 0, 0);
@@ -60,6 +79,29 @@ export default function MembersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  // Cards or table, remembered per device; with nothing saved yet, phones
+  // start on cards and bigger screens on the table.
+  const [view, setView] = useState<ListView>("table");
+
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    } catch {
+      // storage blocked (private mode etc.) — fall back to the screen-size default
+    }
+    if (saved === "cards" || saved === "table") setView(saved);
+    else if (window.innerWidth < 768) setView("cards");
+  }, []);
+
+  function changeView(next: ListView) {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      // not remembered, but the switch still works for this visit
+    }
+  }
 
   // Onboarding plan/payment — optional, matches EarlyRenewForm's fields so a
   // brand-new member can be enrolled in one step instead of "add member"
@@ -592,158 +634,229 @@ export default function MembersPage() {
 
         {listError && <p className="text-red-600 text-sm">{listError}</p>}
 
-        {/* Phones: one card per member instead of an 8-column table. */}
-        <ul className="md:hidden flex flex-col gap-2">
-          {members.map((m) => {
-            const sub = m.current_subscription;
-            const label = sub ? daysLeftLabel(sub.end_date, sub.sessions_remaining) : null;
-            return (
-              <li key={m.id} className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3 flex items-center gap-3">
-                <button onClick={() => setSelectedMemberId(m.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                  <MemberPhoto path={m.photo_url} name={m.name} />
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium text-gray-900 truncate">
-                      {m.name} <span className="text-xs font-normal text-gray-400">#{m.member_number}</span>
-                    </span>
-                    <span className="text-xs text-gray-500">{m.phone || "—"}</span>
-                    {sub ? (
-                      <span className="text-xs flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className={label!.startsWith("Expired") ? "text-red-600 font-semibold" : "text-gray-700"}>
-                          {label}
-                        </span>
-                        {sub.due_amount > 0 && <span className="text-amber-600 font-medium">₹{sub.due_amount} due</span>}
-                        <span className={`px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[sub.status]}`}>
-                          {sub.status.charAt(0) + sub.status.slice(1).toLowerCase()}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400 mt-0.5">No active plan</span>
-                    )}
-                  </div>
-                </button>
-                {m.phone && (
-                  <a
-                    href={`https://wa.me/${digitsOnly(m.phone)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="WhatsApp"
-                    className="shrink-0 w-10 h-10 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center"
-                  >
-                    🟢
-                  </a>
-                )}
-              </li>
-            );
-          })}
-          {members.length === 0 && !listError && (
-            <li className="p-4 text-center text-gray-400 text-sm">
-              {statusFilter || photoFilter || planFilter || q ? "No members match these filters." : "No members yet."}
-            </li>
-          )}
-        </ul>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-gray-500">{total > 0 ? `${total} members` : ""}</span>
+          <div role="group" aria-label="View" className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+            {(["cards", "table"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => changeView(v)}
+                aria-pressed={view === v}
+                className={`px-3 py-1.5 ${
+                  view === v ? "bg-black text-yellow-300 font-semibold" : "bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {v === "cards" ? "▦ Cards" : "☰ Table"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <div className="hidden md:block overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="p-3 font-medium text-gray-600">ID</th>
-                <th className="p-3 font-medium text-gray-600">Member</th>
-                <th className="p-3 font-medium text-gray-600">Phone Number</th>
-                <th className="p-3 font-medium text-gray-600">Days Left</th>
-                <th className="p-3 font-medium text-gray-600">Expiry Date</th>
-                <th className="p-3 font-medium text-gray-600">Due Amount</th>
-                <th className="p-3 font-medium text-gray-600">Status</th>
-                <th className="p-3 font-medium text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const sub = m.current_subscription;
-                return (
-                  <tr key={m.id} className="border-t border-gray-100">
-                    <td className="p-3 text-gray-500 font-medium">{m.member_number}</td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => setSelectedMemberId(m.id)}
-                        className="flex items-center gap-3 text-left hover:underline"
-                      >
-                        <MemberPhoto path={m.photo_url} name={m.name} />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-900">{m.name}</span>
-                          <span className="text-xs text-gray-400">#{shortId(m.id)}</span>
-                        </div>
-                      </button>
-                    </td>
-                    <td className="p-3 text-gray-700">{m.phone || "—"}</td>
-                    {sub ? (
-                      <>
-                        <td
-                          className={`p-3 ${
-                            daysLeftLabel(sub.end_date, sub.sessions_remaining).startsWith("Expired")
-                              ? "text-red-600 font-semibold"
-                              : "text-gray-700"
-                          }`}
-                        >
-                          {daysLeftLabel(sub.end_date, sub.sessions_remaining)}
-                        </td>
-                        <td className="p-3 text-gray-700">{sub.end_date ?? "—"}</td>
-                        <td className="p-3">
-                          {sub.due_amount > 0 ? (
-                            <span className="text-amber-600 font-medium">₹{sub.due_amount}</span>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[sub.status]}`}>
-                            {sub.status.charAt(0) + sub.status.slice(1).toLowerCase()}
+        {view === "cards" && (
+          <ul className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            {members.map((m) => {
+              const sub = m.current_subscription;
+              const days = sub ? daysUntil(sub.end_date) : null;
+              const solid = sub ? STATUS_SOLID[sub.status] : null;
+              return (
+                <li
+                  key={m.id}
+                  className={`min-w-0 rounded-2xl border border-gray-200 border-l-4 ${
+                    solid ? solid.accent : "border-l-gray-300"
+                  } bg-white shadow-sm p-3 flex flex-col gap-3`}
+                >
+                  <button onClick={() => setSelectedMemberId(m.id)} className="flex items-start gap-3 text-left min-w-0">
+                    <MemberPhoto path={m.photo_url} name={m.name} size={72} shape="square" />
+                    <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                      <span className="font-semibold text-gray-900 truncate">{m.name}</span>
+                      <span className="text-xs text-gray-400 truncate">
+                        #{m.member_number}
+                        {m.phone ? ` · ${m.phone}` : ""}
+                      </span>
+                      {sub ? (
+                        <>
+                          <span
+                            className={`self-start mt-1 text-xs font-extrabold tracking-wide px-2.5 py-0.5 rounded-full ${solid!.pill}`}
+                          >
+                            {sub.status}
                           </span>
-                        </td>
-                      </>
-                    ) : (
-                      <td colSpan={4} className="p-3 text-gray-400">
-                        No active plan
-                      </td>
-                    )}
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        {m.phone ? (
+                          <span className="text-sm text-gray-700 truncate mt-0.5" title={sub.plan_name}>
+                            {sub.plan_name}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="self-start mt-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                          NO PLAN
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {sub && (
+                    <div className="flex items-end justify-between gap-2 border-t border-gray-100 pt-2">
+                      <div className="flex flex-col min-w-0">
+                        {days === null ? (
+                          <span className="text-lg font-bold leading-tight text-gray-800">
+                            {daysLeftLabel(sub.end_date, sub.sessions_remaining)}
+                          </span>
+                        ) : days >= 0 ? (
+                          <>
+                            <span
+                              className={`text-lg font-bold leading-tight ${days <= 7 ? "text-amber-600" : "text-emerald-700"}`}
+                            >
+                              {days === 0 ? "Ends today" : `${days} day${days === 1 ? "" : "s"} left`}
+                            </span>
+                            <span className="text-xs text-gray-400">till {sub.end_date}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-lg font-bold leading-tight text-red-600">
+                              Expired {Math.abs(days)}d ago
+                            </span>
+                            <span className="text-xs text-gray-400">on {sub.end_date}</span>
+                          </>
+                        )}
+                        {sub.due_amount > 0 && (
+                          <span className="text-xs font-semibold text-amber-600">₹{sub.due_amount} due</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        {m.phone && (
                           <a
                             href={`https://wa.me/${digitsOnly(m.phone)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="WhatsApp"
-                            className="w-8 h-8 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"
+                            className="w-10 h-10 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"
                           >
                             🟢
                           </a>
-                        ) : (
-                          <span className="w-8 h-8" />
                         )}
                         <button
                           onClick={() => setSelectedMemberId(m.id)}
                           title="View details"
-                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-50"
+                          className="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-gray-50"
                         >
                           👁️
                         </button>
                       </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+            {members.length === 0 && !listError && (
+              <li className="col-span-full p-4 text-center text-gray-400 text-sm">
+                {statusFilter || photoFilter || planFilter || q ? "No members match these filters." : "No members yet."}
+              </li>
+            )}
+          </ul>
+        )}
+
+        {view === "table" && (
+          <div className="overflow-x-auto rounded-2xl shadow-sm border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-left">
+                  <th className="p-3 font-medium text-gray-600">ID</th>
+                  <th className="p-3 font-medium text-gray-600">Member</th>
+                  <th className="p-3 font-medium text-gray-600">Phone Number</th>
+                  <th className="p-3 font-medium text-gray-600">Days Left</th>
+                  <th className="p-3 font-medium text-gray-600">Expiry Date</th>
+                  <th className="p-3 font-medium text-gray-600">Due Amount</th>
+                  <th className="p-3 font-medium text-gray-600">Status</th>
+                  <th className="p-3 font-medium text-gray-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => {
+                  const sub = m.current_subscription;
+                  return (
+                    <tr key={m.id} className="border-t border-gray-100">
+                      <td className="p-3 text-gray-500 font-medium">{m.member_number}</td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => setSelectedMemberId(m.id)}
+                          className="flex items-center gap-3 text-left hover:underline"
+                        >
+                          <MemberPhoto path={m.photo_url} name={m.name} />
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">{m.name}</span>
+                            <span className="text-xs text-gray-400">#{shortId(m.id)}</span>
+                          </div>
+                        </button>
+                      </td>
+                      <td className="p-3 text-gray-700">{m.phone || "—"}</td>
+                      {sub ? (
+                        <>
+                          <td
+                            className={`p-3 ${
+                              daysLeftLabel(sub.end_date, sub.sessions_remaining).startsWith("Expired")
+                                ? "text-red-600 font-semibold"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {daysLeftLabel(sub.end_date, sub.sessions_remaining)}
+                          </td>
+                          <td className="p-3 text-gray-700">{sub.end_date ?? "—"}</td>
+                          <td className="p-3">
+                            {sub.due_amount > 0 ? (
+                              <span className="text-amber-600 font-medium">₹{sub.due_amount}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold tracking-wide ${STATUS_BADGE[sub.status]}`}>
+                              {sub.status}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        <td colSpan={4} className="p-3 text-gray-400">
+                          No active plan
+                        </td>
+                      )}
+                      <td className="p-3">
+                        <div className="flex gap-2">
+                          {m.phone ? (
+                            <a
+                              href={`https://wa.me/${digitsOnly(m.phone)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="WhatsApp"
+                              className="w-8 h-8 rounded-full border border-emerald-600 text-emerald-700 flex items-center justify-center hover:bg-emerald-50"
+                            >
+                              🟢
+                            </a>
+                          ) : (
+                            <span className="w-8 h-8" />
+                          )}
+                          <button
+                            onClick={() => setSelectedMemberId(m.id)}
+                            title="View details"
+                            className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-50"
+                          >
+                            👁️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {members.length === 0 && !listError && (
+                  <tr>
+                    <td colSpan={8} className="p-4 text-center text-gray-400">
+                      {statusFilter || photoFilter || planFilter || q
+                        ? "No members match these filters."
+                        : "No members yet."}
                     </td>
                   </tr>
-                );
-              })}
-              {members.length === 0 && !listError && (
-                <tr>
-                  <td colSpan={8} className="p-4 text-center text-gray-400">
-                    {statusFilter || photoFilter || planFilter || q
-                      ? "No members match these filters."
-                      : "No members yet."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {total > 0 && (
           <div className="flex items-center justify-between flex-wrap gap-2 text-sm text-gray-500">
