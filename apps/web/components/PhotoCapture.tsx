@@ -4,6 +4,14 @@ const MAX_DIMENSION = 640; // plenty for the ~140px identification photo at 2x, 
 const JPEG_QUALITY = 0.85;
 
 type Mode = "idle" | "camera" | "captured";
+type Facing = "user" | "environment";
+
+/** Phones/tablets (touch-first) default to the back camera — staff are
+ * photographing the member in front of them; laptops only have the front
+ * one anyway. */
+function defaultFacing(): Facing {
+  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? "environment" : "user";
+}
 
 /** Center-square crop + downscale + JPEG re-encode, shared by the webcam and
  * file-pick paths. Square because every display of a member photo (big
@@ -84,6 +92,9 @@ export default function PhotoCapture({
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [facing, setFacing] = useState<Facing>(defaultFacing);
+  // Only offer "Switch camera" when there's actually more than one.
+  const [canSwitch, setCanSwitch] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -110,17 +121,24 @@ export default function PhotoCapture({
     setPreview(url);
   }
 
-  async function startCamera() {
+  async function startCamera(nextFacing: Facing = facing) {
     setError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("This browser can't use the camera here. Use “Choose file” instead.");
       return;
     }
+    stopCamera(); // switching: release the current camera before opening the other
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
+        // `ideal`, not `exact` — a device with only one camera still opens it.
+        video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280 }, height: { ideal: 960 } },
       });
       streamRef.current = stream;
+      setFacing(nextFacing);
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => setCanSwitch(devices.filter((d) => d.kind === "videoinput").length > 1))
+        .catch(() => setCanSwitch(false));
       setMode("camera");
       // The <video> only exists once mode is "camera", so attach after paint.
       requestAnimationFrame(() => {
@@ -200,7 +218,8 @@ export default function PhotoCapture({
               playsInline
               muted
               className="w-64 h-64 max-w-full rounded-lg object-cover bg-black"
-              style={{ transform: "scaleX(-1)" }} /* mirror: a selfie view people expect */
+              /* mirror only the front camera (the selfie view people expect); the back camera shows the scene as-is */
+              style={facing === "user" ? { transform: "scaleX(-1)" } : undefined}
             />
             <div className="flex gap-2">
               <button
@@ -211,6 +230,16 @@ export default function PhotoCapture({
               >
                 {busy ? "…" : "Capture"}
               </button>
+              {canSwitch && (
+                <button
+                  type="button"
+                  onClick={() => startCamera(facing === "user" ? "environment" : "user")}
+                  disabled={busy}
+                  className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  🔄 {facing === "user" ? "Back camera" : "Front camera"}
+                </button>
+              )}
               <button type="button" onClick={cancelCamera} className="rounded border px-3 py-1.5 text-sm">
                 Cancel
               </button>
@@ -222,7 +251,7 @@ export default function PhotoCapture({
           <div className="flex gap-2 flex-wrap">
             <button
               type="button"
-              onClick={startCamera}
+              onClick={() => startCamera()}
               disabled={busy}
               className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
             >
@@ -248,7 +277,8 @@ export default function PhotoCapture({
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="user" /* on a phone this opens the camera straight away */
+          /* No `capture` attribute: it forced the front camera. Without it a
+             phone offers Camera (front or back, switchable) or the gallery. */
           hidden
           onChange={handleFilePick}
         />
