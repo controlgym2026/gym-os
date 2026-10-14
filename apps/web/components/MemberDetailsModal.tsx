@@ -256,9 +256,13 @@ export default function MemberDetailsModal({
 
       {view === "edit" && current && (
         <EditMembershipForm
+          // Remount after a due collection so the form's own "Due amount"
+          // field picks up the reduced balance instead of the stale one.
+          key={`${current.id}-${current.due_amount}`}
           subscription={current}
           paid={currentPaid}
           plans={activePlans}
+          onDueCollected={refresh}
           onCancel={() => setView("details")}
           onDone={async () => {
             await refresh();
@@ -662,16 +666,107 @@ function EditMemberForm({
   );
 }
 
+/** Takes a payment against the subscription's outstanding due_amount. The
+ * API records it as a "Due Payment" transaction and lowers due_amount by
+ * the same amount. Not a <form> of its own because it sits inside
+ * EditMembershipForm's form, and forms can't nest. */
+function CollectDuePanel({
+  subscription,
+  onCollected,
+}: {
+  subscription: Subscription;
+  onCollected: () => Promise<void> | void;
+}) {
+  const { session } = useAuth();
+  const [amount, setAmount] = useState(String(subscription.due_amount));
+  const [method, setMethod] = useState<"cash" | "card" | "upi" | "other">("cash");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCollect() {
+    if (!session) return;
+    const value = Number(amount);
+    if (!(value > 0)) {
+      setError("Enter the amount received.");
+      return;
+    }
+    if (value > subscription.due_amount) {
+      setError(`That's more than the ₹${subscription.due_amount} due.`);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch(`/subscriptions/${subscription.id}/payments`, {
+        method: "POST",
+        token: session.access_token,
+        body: { amount: value, method, is_due_payment: true },
+      });
+      await onCollected();
+    } catch (err) {
+      setError(extractErrorDetail(err, "Could not record the payment"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 flex flex-col gap-2">
+      <p className="text-sm font-semibold text-gray-900">
+        Collect due payment · <span className="text-amber-700">₹{subscription.due_amount} due</span>
+      </p>
+      <div className="flex flex-wrap gap-2 items-end">
+        <label className="flex flex-col gap-1 text-sm flex-1 min-w-[7rem]">
+          Amount received
+          <input
+            type="number"
+            min={0}
+            max={subscription.due_amount}
+            step="0.01"
+            className="border rounded px-2 py-1.5 bg-white"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Method
+          <select
+            className="border rounded px-2 py-1.5 bg-white"
+            value={method}
+            onChange={(e) => setMethod(e.target.value as typeof method)}
+          >
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="upi">UPI</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={handleCollect}
+          disabled={saving}
+          className="rounded bg-black text-yellow-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Collect"}
+        </button>
+      </div>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+    </div>
+  );
+}
+
 function EditMembershipForm({
   subscription,
   paid,
   plans,
+  onDueCollected,
   onCancel,
   onDone,
 }: {
   subscription: Subscription;
   paid: { paid: number; discount: number } | null;
   plans: MembershipPlan[];
+  onDueCollected: () => Promise<void> | void;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -719,6 +814,7 @@ function EditMembershipForm({
           {paid.discount > 0 && ` (₹${paid.discount} discount)`}
         </p>
       )}
+      {subscription.due_amount > 0 && <CollectDuePanel subscription={subscription} onCollected={onDueCollected} />}
       <label className="flex flex-col gap-1 text-sm">
         Plan
         <select className="border rounded px-2 py-1.5" value={planId} onChange={(e) => setPlanId(e.target.value)}>
