@@ -3,6 +3,12 @@ import { useEffect } from "react";
 import type { AppProps } from "next/app";
 import Head from "next/head";
 
+// Vercel exposes NEXT_PUBLIC_VERCEL_ENV ("production" | "preview"); the API
+// URL check also covers a staging build run outside Vercel. Shown on every
+// page (login included) so the staging copy is never mistaken for the live gym.
+const IS_STAGING =
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || /stag/i.test(process.env.NEXT_PUBLIC_API_BASE_URL ?? "");
+
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     // Registers public/sw.js — a deliberately empty pass-through worker
@@ -30,6 +36,11 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="description" content="Gym Control — gym management software. A product of Livnexa Care Pvt Ltd." />
       </Head>
+      {IS_STAGING && (
+        <div className="bg-yellow-400 text-black text-xs font-bold text-center py-1 tracking-wide">
+          STAGING — test copy of the data, changes here don&rsquo;t affect the live gym
+        </div>
+      )}
       <Component {...pageProps} />
     </>
   );
