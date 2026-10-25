@@ -43,9 +43,16 @@ _origins = [
     if o.strip()
 ]
 
+# Optional, set only on staging: a regex for Vercel preview origins, since
+# every preview build gets its own one-off hostname (gym-<hash>-…vercel.app)
+# besides the stable branch alias. Unset on live, so live only ever allows
+# the exact origins above.
+_origin_regex = os.environ.get("FRONTEND_ORIGIN_REGEX") or None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
+    allow_origin_regex=_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
