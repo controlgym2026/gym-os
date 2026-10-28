@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
 
 type FetchOpts = {
   method?: string;
