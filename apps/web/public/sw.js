@@ -15,6 +15,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request));
-});
+// A fetch listener that never calls respondWith(): the browser handles every
+// request itself, exactly as if there were no service worker. Re-fetching
+// from inside the worker (the old respondWith(fetch(...))) broke whenever a
+// request was redirected to another site — e.g. Vercel's preview login —
+// turning page loads into "network error" failures.
+self.addEventListener("fetch", () => {});
