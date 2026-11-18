@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import Layout from "@/components/Layout";
 import MemberPhoto from "@/components/MemberPhoto";
 import MemberDetailsModal from "@/components/MemberDetailsModal";
+import ExportMenu from "@/components/ExportMenu";
 import PhotoCapture from "@/components/PhotoCapture";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch, downloadFile } from "@/lib/api";
@@ -60,12 +61,17 @@ function daysLeftLabel(endDate: string | null, sessionsRemaining: number | null)
 }
 
 export default function MembersPage() {
-  const { session, loading, tenantId } = useAuth();
+  const { session, loading, tenantId, role } = useAuth();
+  const canExport = role === "owner" || role === "manager";
   const [members, setMembers] = useState<Member[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [q, setQ] = useState("");
+  // The search text the list was last loaded with — q above is the input box,
+  // which can hold typed-but-not-submitted text. Export's "Current view"
+  // must match the rows on screen, so it uses this.
+  const [appliedQ, setAppliedQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   // Independent of statusFilter — AND'ed together server-side, e.g.
   // "Expired" + "Has photo" narrows to members matching both, not either.
@@ -188,6 +194,7 @@ export default function MembersPage() {
       }
       setMembers(result.items);
       setTotal(result.total);
+      setAppliedQ(query);
       setPage(result.page);
       setListError(null);
     } catch (err) {
@@ -351,6 +358,13 @@ export default function MembersPage() {
             >
               {importing ? "Importing…" : "Import CSV"}
             </button>
+            {canExport && (
+              <ExportMenu
+                token={session.access_token}
+                viewTotal={total}
+                filters={{ q: appliedQ, status: statusFilter, photo: photoFilter, planId: planFilter }}
+              />
+            )}
             <button
               onClick={handleDownloadDirectory}
               disabled={downloadingDirectory}
