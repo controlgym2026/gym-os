@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+dataset.json
+results.json
+pages/
+*.xlsx

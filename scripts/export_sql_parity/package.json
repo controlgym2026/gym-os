@@ -1,0 +1,9 @@
+{
+  "name": "export-sql-parity",
+  "private": true,
+  "description": "Checks supabase/migrations/*members_export.sql against the real GET /members code on an in-process Postgres (PGlite). Dev-only; not deployed.",
+  "type": "module",
+  "dependencies": {
+    "@electric-sql/pglite": "0.2.17"
+  }
+}

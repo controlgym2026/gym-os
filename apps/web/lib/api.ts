@@ -62,23 +62,51 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   return (await res.json()) as T;
 }
 
+/** Thrown by downloadFile for a non-2xx response. `message` is the API's
+ * own `detail` text when there is one (e.g. the export rate-limit message),
+ * so callers can show it to staff as-is. */
+export class DownloadError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+    this.name = "DownloadError";
+  }
+}
+
+/** filename="…" from a Content-Disposition header, if the server sent one
+ * (and CORS exposes it — see expose_headers in apps/api/main.py). */
+function filenameFromDisposition(header: string | null): string | null {
+  const match = header?.match(/filename="?([^";]+)"?/i);
+  return match ? match[1] : null;
+}
+
 /** Fetches a binary response (PDF/Excel/etc.) and triggers a browser
  * download — `apiFetch` above assumes JSON, which a file response isn't. A
  * plain `<a href>` can't carry the Authorization header, so this goes
- * through fetch + blob + a throwaway object URL instead. */
+ * through fetch + blob + a throwaway object URL instead. `filename` is the
+ * fallback; a server-sent Content-Disposition file name wins. */
 export async function downloadFile(path: string, filename: string, opts: FetchOpts = {}): Promise<void> {
   const res = await fetchWithAuth(path, opts);
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`${opts.method ?? "GET"} ${path} -> ${res.status} ${detail}`);
+    const text = await res.text().catch(() => "");
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed.detail === "string") detail = parsed.detail;
+    } catch {
+      /* not JSON — keep the raw text */
+    }
+    throw new DownloadError(detail || `${opts.method ?? "GET"} ${path} -> ${res.status}`, res.status);
   }
 
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = filenameFromDisposition(res.headers.get("Content-Disposition")) ?? filename;
   document.body.appendChild(a);
   a.click();
   a.remove();

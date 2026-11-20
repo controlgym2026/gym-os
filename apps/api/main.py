@@ -20,6 +20,7 @@ from devices import router as devices_router
 from expense import router as expense_router
 from member_import import router as member_import_router
 from members import router as members_router
+from members_export import router as members_export_router
 from payments import router as payments_router
 from plans import router as plans_router
 from reports import router as reports_router
@@ -49,8 +50,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Let the browser read the server-chosen file name and row count on the
+    # members export download (fetch() hides non-safelisted headers by default).
+    expose_headers=["Content-Disposition", "X-Export-Row-Count", "Retry-After"],
 )
 
+# Before members_router: GET /members/export must not be captured by
+# GET /members/{member_id}.
+app.include_router(members_export_router)
 app.include_router(members_router)
 app.include_router(member_import_router)
 app.include_router(plans_router)

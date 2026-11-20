@@ -13,6 +13,9 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // Staff role ("owner" | "manager" | "trainer" | "front_desk") — UI gating
+  // only (e.g. hiding Export); the API re-checks the role on every request.
+  const [role, setRole] = useState<string | null>(null);
   // getSession() resolves near-instantly (reads local storage), but
   // isSuperAdmin/tenantId only become accurate after the /auth/me round
   // trip below finishes — they start at their false/null defaults. A page
@@ -34,15 +37,17 @@ export function useAuth() {
       router.replace("/login");
       return;
     }
-    apiFetch<{ staff: { tenant_id: string } | null; is_super_admin: boolean }>("/auth/me", {
+    apiFetch<{ staff: { tenant_id: string; role: string } | null; is_super_admin: boolean }>("/auth/me", {
       token: session.access_token,
     })
       .then((me) => {
         setTenantId(me.staff?.tenant_id ?? null);
+        setRole(me.staff?.role ?? null);
         setIsSuperAdmin(me.is_super_admin);
       })
       .catch(() => {
         setTenantId(null);
+        setRole(null);
         setIsSuperAdmin(false);
       })
       .finally(() => setProfileLoaded(true));
@@ -52,6 +57,7 @@ export function useAuth() {
     session: session ?? null,
     loading: session === undefined || (session !== null && !profileLoaded),
     tenantId,
+    role,
     isSuperAdmin,
   };
 }
