@@ -306,10 +306,13 @@ def main():
                 scale_csv = r
         list_total_b = live.list_total(tok_b, {})
         check(list_total_b == args.members, f"unfiltered list total = {list_total_b}")
-        lf = live.list_total(tok_b, {"filter": "due"})
-        ef_ = int(live.export(tok_b, "csv", {"filter": "due"}).headers["x-export-row-count"])
-        print(f"  INFO  filtered 'due' at {args.members} members: list total={lf}, export={ef_}"
-              + ("  <- list's filtered path is capped by PostgREST max_rows (pre-existing)" if lf != ef_ else ""))
+        # Filtered list totals above PostgREST's max_rows (1000): the list used
+        # to cap these (639 vs 3,214 for "due" at 5,000 members).
+        for label, params in (("due", {"filter": "due"}), ("expired", {"filter": "expired"}),
+                              ("has_photo", {"photo": "has_photo"}), ("active + no_photo", {"filter": "active", "photo": "no_photo"})):
+            lf = live.list_total(tok_b, params)
+            ef_ = int(live.export(tok_b, "csv", params).headers["x-export-row-count"])
+            check(lf == ef_, f"filtered list total at {args.members} members, {label}: list={lf} export={ef_}")
         if args.pid:
             print(f"  INFO  local API process peak working set: {peak_working_set_mb(args.pid):.0f} MB")
 
