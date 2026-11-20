@@ -16,8 +16,12 @@ class _Result:
 
 
 class _Query:
-    def __init__(self, rows: list[dict], mode: str, payload=None):
-        self._rows = rows  # the table's live row list (insert/update mutate it)
+    def __init__(self, rows: list[dict], mode: str, payload=None, max_rows: int | None = None):
+        self._rows = rows
+        # PostgREST's max_rows: every response is silently truncated to this
+        # many rows (count=exact still reports the true total). None = no cap.
+        self._max_rows = max_rows
+        self._orders: list[tuple[str, bool]] = []  # the table's live row list (insert/update mutate it)
         self._filtered = list(rows)
         self._mode = mode
         self._payload = payload
@@ -52,7 +56,12 @@ class _Query:
         return self
 
     def order(self, col, desc=False):
-        self._filtered.sort(key=lambda r: r.get(col) or "", reverse=desc)
+        # Like PostgREST, successive .order() calls add tie-breakers: the first
+        # call is the primary key. Re-sort by all keys, last key first, relying
+        # on sort stability.
+        self._orders.append((col, desc))
+        for c, d in reversed(self._orders):
+            self._filtered.sort(key=lambda r, c=c: r.get(c) or "", reverse=d)
         return self
 
     def or_(self, expr: str):
@@ -84,7 +93,8 @@ class _Query:
     def execute(self):
         if self._mode == "select":
             total = self._total if self._total is not None else len(self._filtered)
-            return _Result(list(self._filtered), count=total)
+            rows = self._filtered if self._max_rows is None else self._filtered[: self._max_rows]
+            return _Result(list(rows), count=total)
         if self._mode == "insert":
             # Real postgrest-py's .insert() takes either one dict or a list
             # of dicts (a batch insert in one request) — support both here.
@@ -109,11 +119,12 @@ class _Query:
 
 
 class _Table:
-    def __init__(self, rows: list[dict]):
+    def __init__(self, rows: list[dict], max_rows: int | None = None):
         self._rows = rows
+        self._max_rows = max_rows
 
     def select(self, *_a, **_k):
-        return _Query(self._rows, "select")
+        return _Query(self._rows, "select", max_rows=self._max_rows)
 
     def insert(self, payload: dict):
         return _Query(self._rows, "insert", payload)
@@ -126,11 +137,12 @@ class _Table:
 
 
 class FakeClient:
-    def __init__(self):
+    def __init__(self, max_rows: int | None = None):
         self.tables: dict[str, list[dict]] = {}
+        self.max_rows = max_rows
 
     def table(self, name: str) -> _Table:
-        return _Table(self.tables.setdefault(name, []))
+        return _Table(self.tables.setdefault(name, []), self.max_rows)
 
     def seed(self, name: str, rows: list[dict]) -> None:
         self.tables.setdefault(name, []).extend(rows)

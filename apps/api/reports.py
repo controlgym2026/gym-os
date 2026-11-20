@@ -17,6 +17,8 @@ from members import (
     STATUS_FILTERS,
     _attach_current_subscriptions,
     _filtered_members_query,
+    _ordered,
+    fetch_all_rows,
     member_matches_filter,
 )
 
@@ -50,7 +52,8 @@ def _fetch_all_members_with_subscriptions(client, tenant_id: str, q: str | None 
     """Every non-deleted member for the tenant, current_subscription
     attached — unpaginated, for the two bulk-export use cases below (a
     report/directory needs everyone, not one page at a time)."""
-    members = _filtered_members_query(client, tenant_id, q).execute().data
+    # Paged: an unranged select stops at PostgREST's max_rows (1000).
+    members = fetch_all_rows(lambda: _ordered(_filtered_members_query(client, tenant_id, q)))
     return _attach_current_subscriptions(client, tenant_id, members)
 
 

@@ -147,6 +147,49 @@ def sort_members_for_filter(
     return with_date + without_date
 
 
+# PostgREST (Supabase) caps every response at max_rows — 1000 by default —
+# and does it silently: an unranged select on a bigger table just returns the
+# first 1000 rows. Anything that needs *every* row of a tenant (the filtered
+# list, the PDF directory, the daily digest) must page through with
+# fetch_all_rows() instead of a bare .execute(). Found live: at 5,000 members
+# the "Due" filter reported 639 members when 3,214 were actually due.
+FETCH_PAGE_SIZE = 1000
+# Member ids per .in_() request: one uuid is ~37 URL characters, so a few
+# hundred keeps the request URL far below proxy/PostgREST limits.
+IN_CHUNK_SIZE = 200
+
+
+def fetch_all_rows(make_query, page_size: int = FETCH_PAGE_SIZE) -> list[dict]:
+    """Every row of a query, fetched page by page.
+
+    `make_query` must return a FRESH query builder each call (postgrest-py
+    builders mutate in place), selected with count="exact" and with a total
+    order — ending in a unique column such as id — so pages neither overlap
+    nor skip rows. Stops at the count the first page reported; tolerates
+    rows disappearing mid-scan (an empty page or PGRST103 just ends it)."""
+    rows: list[dict] = []
+    total: int | None = None
+    while total is None or len(rows) < total:
+        try:
+            result = make_query().range(len(rows), len(rows) + page_size - 1).execute()
+        except APIError as exc:
+            if exc.code == "PGRST103":  # offset past the end — rows were deleted meanwhile
+                break
+            raise
+        batch = result.data or []
+        if total is None:
+            total = result.count if result.count is not None else len(batch)
+        if not batch:
+            break
+        rows.extend(batch)
+    return rows
+
+
+def _chunks(items: list, size: int):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
 def _latest_subscriptions_by_member(
     client, tenant_id: str, member_ids: list[str] | None = None
 ) -> dict[str, dict]:
@@ -157,12 +200,26 @@ def _latest_subscriptions_by_member(
     the filtered list path, which has to know each member's status before it
     can decide who's even on the page, and which therefore can't send an
     .in_() of every member id without blowing the URL length limit."""
-    query = client.table("subscription").select("*").eq("tenant_id", tenant_id)
-    if member_ids is not None:
+    def subs_query(ids: list[str] | None):
+        def make():
+            query = client.table("subscription").select("*", count="exact").eq("tenant_id", tenant_id)
+            if ids is not None:
+                query = query.in_("member_id", ids)
+            # id as tie-break: a total order, so paging is stable and "latest"
+            # is deterministic when two rows share created_at (the export's
+            # members_export() SQL breaks ties the same way).
+            return query.order("created_at", desc=True).order("id", desc=True)
+
+        return make
+
+    if member_ids is None:
+        subs = fetch_all_rows(subs_query(None))
+    else:
         if not member_ids:
             return {}
-        query = query.in_("member_id", member_ids)
-    subs = query.order("created_at", desc=True).execute().data
+        subs = []
+        for chunk in _chunks(member_ids, IN_CHUNK_SIZE):
+            subs.extend(fetch_all_rows(subs_query(chunk)))
 
     latest_by_member: dict[str, dict] = {}
     for s in subs:
@@ -228,6 +285,14 @@ def _filtered_members_query(client, tenant_id: str, q: str | None):
     return query
 
 
+def _ordered(query):
+    """The members list's order: newest first, id as the tie-break. Bulk
+    imports give many members the same created_at, and without a unique
+    tie-break PostgREST may order those ties differently from one page
+    request to the next — repeating or skipping members across pages."""
+    return query.order("created_at", desc=True).order("id", desc=True)
+
+
 @router.get("")
 def list_members(
     q: str | None = None,
@@ -262,7 +327,7 @@ def list_members(
         # PostgREST can't paginate this for us. Resolve every member's
         # current subscription (2 queries, not N) and page in Python. Bounded
         # by one gym's member count, which is what this product is scoped to.
-        members = _filtered_members_query(client, tenant_id, q).order("created_at", desc=True).execute().data
+        members = fetch_all_rows(lambda: _ordered(_filtered_members_query(client, tenant_id, q)))
         latest_by_member = _latest_subscriptions_by_member(client, tenant_id)
         matched = [
             m
@@ -285,7 +350,7 @@ def list_members(
             "page_size": page_size,
         }
 
-    query = _filtered_members_query(client, tenant_id, q).order("created_at", desc=True)
+    query = _ordered(_filtered_members_query(client, tenant_id, q))
     try:
         result = query.range(offset, offset + page_size - 1).execute()
         items, total = result.data, result.count or 0
